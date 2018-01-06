@@ -59,5 +59,16 @@
   >
   > 高度塌陷
 
+* 如何清除浮动
 
+  > 让盒子负责自己的布局
+  >
+  > overflow:hidden(auto)
+  >
+  > ::after{clear:both}
 
+#### inline-block
+
+* 像文本一样排block元素
+* 没有清除浮动等问题
+* 需要处理间隙
