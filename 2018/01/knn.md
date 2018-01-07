@@ -87,7 +87,7 @@ class kNNClassifier:
         assert x.shape[0] == self._X_train.shape[1], 'the feature number of x must be equal to X_train'
         distances = [sqrt(np.sum((x_train - x) ** 2)) for x_train in self._X_train]
         nearest = np.argsort(distances)
-        topK_y = [self._y_train[i] for i in nearst[:self.k]]
+        topK_y = [self._y_train[i] for i in nearest[:self.k]]
         votes = Counter(topK_y)
         return votes.most_common(1)[0][0]
     
@@ -95,5 +95,45 @@ class kNNClassifier:
         return "kNN(k=%d)" % self.k
 ```
 
+#### 判断机器学习算法的性能(model_selection.py)
 
+```python
+import numpy as np
+
+def train_test_split(X, y, test_ratio=0.2, seed=None):
+    """将数据X和y按照test_ration分割成X_train, X_test, y_train, y_test"""
+    assert X.shape[0] == y.shape[0], "the size of X must be equal to the size of y"
+    assert 0.0 <= test_ratio <= 1.0, "test_ratio must be valid"
+
+    if seed:
+        np.random.seed(seed)
+
+    shuffled_indexes = np.random.permutation(len(X))
+
+    test_size = int(len(X) * test_ratio)
+    test_indexes = shuffled_indexes[:test_size]
+    train_indexes = shuffled_indexes[test_size:]
+
+    X_train = X[train_indexes]
+    y_train = y[train_indexes]
+
+    X_test = X[test_indexes]
+    y_test = y[test_indexes]
+
+    return X_train,X_test,y_train,y_test
+```
+
+* metrics.py
+
+```python
+import numpy as np
+
+def accuracy_score(y_true, y_predict):
+    '''计算y_true和y_predict之间的准确率'''
+    assert y_true.shape[0] == y_predict[0], "the size of y_true must be equal to the size of y_predict"
+    
+    return sum(y_true == y_predict) / len(y_true)
+```
+
+#### 超参数
 
