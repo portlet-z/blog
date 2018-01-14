@@ -24,7 +24,9 @@ Name + N个DataNode
 
 **建议：NN和DN是部署在不同的节点上**
 
+replication factor：副本系数、副本因子
 
+All blocks in a file except the last block are the same size
 
 
 
