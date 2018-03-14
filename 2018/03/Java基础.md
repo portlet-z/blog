@@ -81,6 +81,69 @@
 
 
 
-#### HTTP的GET和POST方式的区别
+#### session和cookie区别
 
-* ​
+* session存在服务器端，cookie存在客户端(浏览器)
+* session默认被存在在服务器的一个文件里(不是内存)
+* session的运行依赖session id, 而session id是存在cookie中的，也就是说，如果浏览器禁用了cookie，同时session也会失效(但是可以通过其他方式实现，比如在url中传递session id)
+* session可以存放在文件，数据库，或内存中
+* 用户验证一般会用session
+
+
+
+#### session分布式处理
+
+* session复制
+  - 在支持session复制的服务器上，通过修改web服务器的配置，可以实现将session同步到其他web服务器上，达到每个web服务器上都保存一致的session
+  - 优点：代码上不需要做支持和修改
+  - 缺点：需要依赖支持的web服务器，在数据量很大的情况下占用大量网络资源，而且会导致延迟
+  - 适用场景：web服务器少，session数据量少
+  - 可用方案：tomcat-redis-session-manager
+* session粘带
+  - 将用户的请求通过某种方法强制分发到某一个web服务器上，只要这个web服务器存储了对应的session数据，就可以实现会话跟踪
+  - 优点：使用简单，没有额外开销
+  - 缺点：一旦某个web服务器重启或宕机，session数据就会丢失，而且需要负载均衡
+  - 适用场景：对稳定性要求不是很高的业务场景
+* session集中管理
+  - 在单独的服务器或服务器集群上使用的缓存技术，如Redis存储Session数据，集中管理所有的Session,所有的Web服务器都会从这个存储介质中获取对应的session,实现session共享
+  - 优点：可靠性高，减少Web服务器的资源开销
+  - 缺点：实现上有些负责，配置较多
+  - 适用场景：Web服务器较多，要求高可用性的情况
+  - 可用方案：Spring Session(主要是重写HttpServletRequestWrapper中的getSession方法)
+* 基于Cookie管理
+  - 每次发起请求的时候都需要将Session数据放到Cookie中传递给服务器
+  - 优点：不需要依赖外部存储，不需要额外配置
+  - 缺点：不安全，易被盗取或篡改；Cookie数量和长度有限制
+  - 适用场景：数据不重要，不敏感且数据量小的情况
+
+
+
+#### JDBC流程
+
+* 向DriverManager中注册驱动：Class.forName
+* 调用DriverManager.getConnection()方法，通过url,用户名，密码获得数据库链接的Connection对象
+* 获取Connection后，通过createStatement创建Statment用以执行sql语句
+* 查询返回ResultSet中
+* 关闭数据库链接
+
+
+
+#### MVC设计思想
+
+* 最上面一层视图层(View),提供用户的操作界面，是程序的外壳
+* 最底下的一层数据层(Model),程序需要操作的数据或信息
+* 中间的一层控制层(Controller),根据用户从"视图层"输入的指令，选取"数据层"中的数据，然后对其进行操作处理，产生结果
+* SpringMVC
+  - 用户发起请求被DispatcherServlet捕获，对URL解析，得到URI。
+  - 根据URI调用HandlerMapping获得该Handler配置的所有相关对象，返回HandlerExecutionChain对象
+  - DispatcherServlet根据获得的Handler,选择一个合适的HandlerAdapter
+  - 提取Request中的模型数据，填充Handler,执行Handler
+  - HttpMessageConverter:将请求消息(json, xml)转换成一个对象，将对象转换为指定的响应消息
+  - Handler执行完成后返回ModelAndView对象，选择一个合适的ViewResolver
+
+
+
+#### equals和==的区别
+
+* ==常用于原生类型比较，equals用于检查对象的相等性
+* 当两个引用地址相同时 == 返回true.equals根据重写来判断
