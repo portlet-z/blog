@@ -51,3 +51,48 @@ for {
 }
 ```
 
+### 函数
+
+* func eval(a,b int, op string) int
+* 返回值类型写在最后面
+* 可返回多个值
+* 函数作为参数
+* 没有默认参数，可选参数
+
+```go
+//函数式编程
+func app(op func(int, int) int, a, b int) int {
+    return op(a,b)
+}
+apply(
+    func(a int, b int) int {
+        return a + b
+    }, 1, 2)
+
+//可变参数列表
+func sum(numbers ...int) int {
+    s := 0
+    for i:= range numbers{
+        s += numbers[i]
+    }
+    return s
+}
+```
+
+
+
+### 指针
+
+* 指针不能运算
+* 参数传递：只有值传递一种方式
+
+```go
+func swap(*a, *b int){
+    *a, *b = *b, *a
+}
+
+func swap(a, b int) (int, int){
+    return b, a
+}
+```
+
