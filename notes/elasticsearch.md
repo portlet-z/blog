@@ -110,6 +110,39 @@ http://192.168.0.1:9200/_cat/nodes
 
 
 
+### ES集群设置密码访问
+
+- 生成证书
+
+```bash
+bin/elasticsearch-certutil cert -out config/elastic-certificates.p12 -pass ""
+```
+
+- 拷贝到其它两台几区
+
+```shell
+cp es7301/config/elastic-certificates.p12 es7302/config/
+cp es7301/config/elastic-certificates.p12 es7302/config/
+```
+
+- 修改个配置然后启动
+
+```yaml
+xpack.security.enabled: true
+xpack.security.transport.ssl.enabled: true
+xpack.security.transport.ssl.verification_mode: certificate
+xpack.security.transport.ssl.keystore.path: /usr/local/opt/es7301/config/elastic-certificates.p12
+xpack.security.transport.ssl.truststore.path: /usr/local/opt/es7301/config/elastic-certificates.p12
+```
+
+- 设置密码
+
+```bash
+bin/elasticsearch-setup-passwords interactive 
+```
+
+
+
 ### 路由计算&分片控制
 
 hash(id) % 主分片的数量
