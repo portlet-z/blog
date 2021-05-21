@@ -1061,7 +1061,72 @@ JVM中的PC寄存器是对物理PC寄存器的一种模拟。寄存器存储指�
 
 ### 字节码文件
 
+#### Class文件
 
+- 字节码指令byte code: Java虚拟机的指令由一个字节长度的、代表着某种特定操作含义的操作码opcode以及跟随其后的零至多个代表此操作所需参数的操作数operand所构成。虚拟机中许多指令并不包含操作数，只有一个操作码
 
+- Class 类的本质：任何一个Class文件都对应着唯一一个类或接口定义信息，但反过来说，Class文件实际上它并不一定以磁盘文件的形式存在。Class文件是一组以8bit字节为基础单位的二进制流
 
+- Class文件格式采用一种类似于C语言结构体的方式进行数据存储，这种结构只有两种数据类型：无符号数和表。
+
+  - 无符号数属于基本的数据类型，以u1,u2,u4,u8来分别代表1个字节，2个字节，4个字节，8个字节的无符号数，无符号数可以用来描述数字，索引引用，数量值或者按照UTF-8编码构成字符串值
+  - 表是由多个无符号数或者其他表作为数据项构成的复合数据类型，所有表都习惯地以_info结尾。表用于描述有层次关系的复合结构的数据，整个Class文件本质上就是一张表。由于表没有固定长度，所以通常会在其签名加上个数说明
+
+- Class文件结构：
+
+  - 魔数: magic(u4)
+
+  - Class文件版本:  minor_version(u2) , major_version(u2)
+
+  - 常量池 :  constant_pool_count(u2) , constant_pool[constant_pool_count - 1]
+
+    | 类型                             | 标识或标志 | 描述                 |
+    | -------------------------------- | ---------- | -------------------- |
+    | CONSTANT_utf8_info               | 1          | UTF-8编码的字符串    |
+    | CONSTANT_Integer_info            | 3          | 整型字面量           |
+    | CONSTANT_Float_info              | 4          | 浮点型字面量         |
+    | CONSTANT_Long_info               | 5          | 长整型字面量         |
+    | CONSTANT_Double_info             | 6          | 双精度浮点型字面量   |
+    | CONSTANT_Class_info              | 7          | 类或接口的符号引用   |
+    | CONSTANT_String_info             | 8          | 字符串类型字面量     |
+    | CONSTANT_Fieldref_info           | 9          | 字段的符号引用       |
+    | CONSTANT_Methodref_info          | 10         | 类中方法的符号引用   |
+    | CONSTANT_InterfaceMethodref_info | 11         | 接口中方法的符号引用 |
+    | CONSTANT_NameAndType_info        | 12         | 字段或方法的符号引用 |
+    | CONSTANT_MethodHandle_info       | 15         | 表示方法句柄         |
+    | CONSTANT_MethodType_info         | 16         | 表示方法类型         |
+
+    1. 常量池主要存放两大类常量：字面量Literal和符号引用Symbolic Reference
+
+    2. 字面量：文本字符串，声明为final的常量值
+
+    3. 符号引用：类和接口的全限定名；字段的名称和描述符；方法的名称和描述符
+
+    4. 描述符的作用是用来描述字段的数据类型，方法的参数列表(数量，类型，顺序)和返回值。
+
+       | 标志符 | 含义                                       |
+       | ------ | ------------------------------------------ |
+       | B      | byte                                       |
+       | C      | char                                       |
+       | D      | double                                     |
+       | F      | float                                      |
+       | I      | int                                        |
+       | J      | long                                       |
+       | S      | short                                      |
+       | Z      | boolean                                    |
+       | V      | void                                       |
+       | L      | 对象类型，比如 Ljava/lang/Object;          |
+       | [      | 数组类型，代表一维数组。比如double[] is [D |
+       
+       
+  
+  - 访问标志 : access_flags(u2)
+  
+  - 类索引，父类索引，接口索引集合: this_class(u2), super_class(u2), interfaces_count(u2), interfaces(u2)
+  
+  - 字段表集合: fields_count(u2), fields[fields_count]
+  
+  - 方法表集合:methods_count(u2), methods[methods_count]
+  
+  - 属性表集合: attributes_count(u2), attributes[attributes_count]
 
