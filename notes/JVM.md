@@ -1184,6 +1184,30 @@ JVM中的PC寄存器是对物理PC寄存器的一种模拟。寄存器存储指�
     1. methods：指向常量池索引集合，它完整描述了每个方法的签名
     2. 在字节码文件中，每一个method_info项都对应一个类或者接口中的方法信息。比如方法的访问修饰符(public, private, protected)，方法的返回值类型以及方法的参数信息等
     3. methods表只描述当前类或接口中声明的方法，不包括从父类或父接口继承的方法。methods表有可能会出现由编译器自动添加的方法，最典型的便是编译器产生的方法信息<clinit>(), <init>()
+    4. methods表中的每个成员都必须是一个method_info结构，用于表示当前类或接口中某个方法的完整描述。如果某个method_info结构的access_flags项既没有设置ACC_NATIVE标志也没有设置ACC_ABSTRACT标志，那么该结构中也应包含实现这个方法所用的Java虚拟机指令
+    5. method_info结构可以表示类和接口中定义的所有方法，包括实例方法，类方法，实例初始化方法和类或接口初始化方法
+    6. 方法表的结构实际跟字段表是一样的
+    7. 方法表访问标志跟字段表一样，方法表也有访问标志。部分相同，部分不同
   
   - 属性表集合: attributes_count(u2), attributes[attributes_count]
+  
+    1. 指的是class文件所写的的辅助信息，比如class文件的源文件的名称。以及任何带有RetentionPolicy.CLASS或者RetentionPolicy.RUNTIME的注解。这类信息通常被用于Java虚拟机的验证和运行，以及Java程序的调试
+  
+    2. 属性的通用格式
+  
+       | 类型 | 名称                 | 数量             | 含义       |
+       | ---- | -------------------- | ---------------- | ---------- |
+       | u2   | attribute_name_index | 1                | 属性名索引 |
+       | u4   | attribute_length     | 1                | 属性长度   |
+       | u1   | info                 | attribute_length | 属性表     |
+  
+    3. 属性类型
+  
+       | 属性名称      | 使用位置         | 含义                           |
+       | ------------- | ---------------- | ------------------------------ |
+       | Code          | 方法表           | Java代码编译成的字节码指令     |
+       | ConstantValue | 字段表           | final关键字定义的常量池        |
+       | Deprecated    | 类，方法，字段表 | 被声明为deprecated的方法和字段 |
+  
+       
 
