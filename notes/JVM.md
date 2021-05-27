@@ -1264,7 +1264,17 @@ JVM中的PC寄存器是对物理PC寄存器的一种模拟。寄存器存储指�
 
 - 类型转换指令
 
+  - 类型转换指令可以将两种不同的数值类型进行相互转换
+  - 这些转换操作一般用于实现用户代码中的显示类型转换操作，或者用来处理字节码指令集中数据类型相关指令无法与数据类型一一对应的问题
+  - 宽化类型转换：int -> long, float, double  i2l, i2f, i2d; long -> float, double l2f, l2d; float -> double f2d;
+  - 窄化类型转换：int -> byte, short, char i2b, i2s, i2c; long -> int l2i; float -> int/long f2i, f2l; double -> int, long, float d2i, d2l, d2f
+
 - 对象的创建与访问指令
+
+  - 创建指令：创建类实例的指令new接收一个操作数，为指向常量池的索引，表示要执行创建的类型，执行完成后，将对象的引用压入栈。创建数组的指令newarray创建基本类型数组；anewarray创建引用类型数组；multianewarray创建多维数组
+  - 字段访问指令:访问类字段getstatic(压入栈), pustatic(出栈); 访问类实例字段getfield, putfield
+  - 数组操作指令：把一个数组元素加载到操作数栈的指令:baload,caload,saload,iaload,laload,faload,daload,aaload;将一个操作数栈的值存储到数组元素中的指令:bastore,castore,sastore,iastore,lastore,fastore,dastore,aastore; 取数组长度指令arraylength:该指令弹出栈顶的数组元素，获取数组的长度，将长度压入栈
+  - 类型检查指令：checkcast用于检查类型强制类型转换是否可行，如果可以进行，那么checkcast指令不会改变操作数栈，否则会抛出ClassCastException。instanceof指令用来判断给定对象是否是某一个类的实例，它会将判断结果压入操作数栈
 
 - 方法调用与返回指令
 
