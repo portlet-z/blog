@@ -108,7 +108,7 @@ done
 ```
 
 > xsync
-```
+```shell
 #!/bin/bash
 #1. 判断参数个数
 if [ $# -lt 1 ]
