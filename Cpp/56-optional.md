@@ -56,7 +56,5 @@ std::optional<int> count;
 int c = count.value_or(0);
 ```
 
-
-
-- so let's 
+- so let's start out as well what we'll do is we will log that value and of course since the file does not exist what we should see in this case I'll just log and end line as well what we should see in this case is not present as you can see that's what we get not present because the file couldn't be opened all 
 
