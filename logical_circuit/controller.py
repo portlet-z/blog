@@ -39,7 +39,7 @@ def compile_addr0(addr, ir, psw, index):
 
     op = ir
 
-    INST = ASM.INSTRUCTIONS[2]
+    INST = ASM.INSTRUCTIONS[0]
     if op not in INST:
         micro[addr] = pin.CYC
         return
