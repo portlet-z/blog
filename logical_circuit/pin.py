@@ -83,4 +83,16 @@ PC_OUT = PC_CS
 PC_IN = PC_CS | PC_WE
 PC_INC = PC_CS | PC_WE | PC_EN
 
+CYC = 2 ** 30
 HTL = 2 ** 31
+
+ADDR2 = 1 << 7
+ADDR1 = 1 << 6
+
+ADDR2_SHIFT = 4
+ADDR1_SHIFT = 2
+
+AM_INS = 0
+AM_REG = 1
+AM_DIR = 2
+AM_RAM = 3
