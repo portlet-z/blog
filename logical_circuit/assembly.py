@@ -20,7 +20,58 @@ INSTRUCTIONS = {
         MOV: {
             (pin.AM_REG, pin.AM_INS): [
                 pin.DST_W | pin.SRC_OUT,
-            ]
+            ],
+            (pin.AM_REG, pin.AM_REG): [
+                pin.DST_W | pin.SRC_R,
+            ],
+            (pin.AM_REG, pin.AM_DIR): [
+                pin.SRC_OUT | pin.MAR_IN,
+                pin.DST_W | pin.RAM_OUT,
+            ],
+            (pin.AM_REG, pin.AM_RAM): [
+                pin.SRC_R | pin.MAR_IN,
+                pin.DST_W | pin.RAM_OUT,
+            ],
+            (pin.AM_DIR, pin.AM_INS): [
+                pin.DST_OUT | pin.MAR_IN,
+                pin.RAM_IN | pin.SRC_OUT,
+            ],
+            (pin.AM_DIR, pin.AM_REG): [
+                pin.DST_OUT | pin.MAR_IN,
+                pin.RAM_IN | pin.SRC_R,
+            ],
+            (pin.AM_DIR, pin.AM_DIR): [
+                pin.SRC_OUT | pin.MAR_IN,
+                pin.RAM_OUT | pin.T1_IN,
+                pin.DST_OUT | pin.MAR_IN,
+                pin.RAM_IN | pin.T1_OUT,
+            ],
+            (pin.AM_DIR, pin.AM_RAM): [
+                pin.SRC_R | pin.MAR_IN,
+                pin.RAM_OUT | pin.T1_IN,
+                pin.DST_OUT | pin.MAR_IN,
+                pin.RAM_IN | pin.T1_OUT,
+            ],
+            (pin.AM_RAM, pin.AM_INS): [
+                pin.DST_R | pin.MAR_IN,
+                pin.RAM_IN | pin.SRC_OUT,
+            ],
+            (pin.AM_RAM, pin.AM_REG): [
+                pin.DST_R | pin.MAR_IN,
+                pin.RAM_IN | pin.SRC_R,
+            ],
+            (pin.AM_RAM, pin.AM_DIR): [
+                pin.SRC_OUT | pin.MAR_IN,
+                pin.RAM_OUT | pin.T1_IN,
+                pin.DST_R | pin.MAR_IN,
+                pin.RAM_IN | pin.T1_OUT,
+            ],
+            (pin.AM_RAM, pin.AM_RAM): [
+                pin.SRC_R | pin.MAR_IN,
+                pin.RAM_OUT | pin.T1_IN,
+                pin.DST_R | pin.MAR_IN,
+                pin.RAM_IN | pin.T1_OUT,
+            ],
         }
     },
     1: {},
@@ -34,5 +85,4 @@ INSTRUCTIONS = {
     }
 }
 
-print(bin(MOV))
 
