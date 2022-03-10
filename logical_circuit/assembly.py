@@ -12,9 +12,15 @@ FETCH = [
 MOV = (0 << pin.ADDR2_SHIFT) | pin.ADDR2
 ADD = (1 << pin.ADDR2_SHIFT) | pin.ADDR2
 SUB = (2 << pin.ADDR2_SHIFT) | pin.ADDR2
+CMP = (3 << pin.ADDR2_SHIFT) | pin.ADDR2
+AND = (4 << pin.ADDR2_SHIFT) | pin.ADDR2
+OR = (5 << pin.ADDR2_SHIFT) | pin.ADDR2
+XOR = (6 << pin.ADDR2_SHIFT) | pin.ADDR2
 
 INC = (0 << pin.ADDR1_SHIFT) | pin.ADDR1
 DEC = (1 << pin.ADDR1_SHIFT) | pin.ADDR1
+NOT = (2 << pin.ADDR1_SHIFT) | pin.ADDR1
+JMP = (3 << pin.ADDR1_SHIFT) | pin.ADDR1
 
 NOP = 0
 HLT = 0x3f
@@ -101,6 +107,54 @@ INSTRUCTIONS = {
                 pin.OP_SUB | pin.ALU_OUT | pin.DST_W | pin.ALU_PSW,
             ],
         },
+        CMP: {
+            (pin.AM_REG, pin.AM_INS): [
+                pin.DST_R | pin.A_IN,
+                pin.SRC_OUT | pin.B_IN,
+                pin.OP_SUB | pin.ALU_PSW,
+            ],
+            (pin.AM_REG, pin.AM_REG): [
+                pin.DST_R | pin.A_IN,
+                pin.SRC_R | pin.B_IN,
+                pin.OP_SUB | pin.ALU_PSW,
+            ],
+        },
+        AND: {
+            (pin.AM_REG, pin.AM_INS): [
+                pin.DST_R | pin.A_IN,
+                pin.SRC_OUT | pin.B_IN,
+                pin.OP_AND | pin.ALU_OUT | pin.DST_W | pin.ALU_PSW,
+            ],
+            (pin.AM_REG, pin.AM_REG): [
+                pin.DST_R | pin.A_IN,
+                pin.SRC_R | pin.B_IN,
+                pin.OP_AND | pin.ALU_OUT | pin.DST_W | pin.ALU_PSW,
+            ],
+        },
+        OR: {
+            (pin.AM_REG, pin.AM_INS): [
+                pin.DST_R | pin.A_IN,
+                pin.SRC_OUT | pin.B_IN,
+                pin.OP_OR | pin.ALU_OUT | pin.DST_W | pin.ALU_PSW,
+            ],
+            (pin.AM_REG, pin.AM_REG): [
+                pin.DST_R | pin.A_IN,
+                pin.SRC_R | pin.B_IN,
+                pin.OP_OR | pin.ALU_OUT | pin.DST_W | pin.ALU_PSW,
+            ],
+        },
+        XOR: {
+            (pin.AM_REG, pin.AM_INS): [
+                pin.DST_R | pin.A_IN,
+                pin.SRC_OUT | pin.B_IN,
+                pin.OP_XOR | pin.ALU_OUT | pin.DST_W | pin.ALU_PSW,
+            ],
+            (pin.AM_REG, pin.AM_REG): [
+                pin.DST_R | pin.A_IN,
+                pin.SRC_R | pin.B_IN,
+                pin.OP_XOR | pin.ALU_OUT | pin.DST_W | pin.ALU_PSW,
+            ],
+        },
     },
     1: {
         INC: {
@@ -113,6 +167,17 @@ INSTRUCTIONS = {
             pin.AM_REG: [
                 pin.DST_R | pin.A_IN,
                 pin.OP_DEC | pin.ALU_OUT | pin.DST_W | pin.ALU_PSW,
+            ],
+        },
+        NOT: {
+            pin.AM_REG: [
+                pin.DST_R | pin.A_IN,
+                pin.OP_NOT | pin.ALU_OUT | pin.DST_W | pin.ALU_PSW,
+            ],
+        },
+        JMP: {
+            pin.AM_INS: [
+                pin.DST_OUT | pin.PC_IN,
             ],
         }
     },
