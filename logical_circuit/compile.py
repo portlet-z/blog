@@ -1,7 +1,10 @@
+# coding=utf-8
+
 import os
+import re
+
 import pin
 import assembly as ASM
-import re
 
 dirname = os.path.dirname(__file__)
 
@@ -28,11 +31,25 @@ OP1 = {
     'DEC': ASM.DEC,
     'NOT': ASM.NOT,
     'JMP': ASM.JMP,
+    'JO': ASM.JO,
+    'JNO': ASM.JNO,
+    'JZ': ASM.JZ,
+    'JNZ': ASM.JNZ,
+    'JP': ASM.JP,
+    'JNP': ASM.JNP,
+    'PUSH': ASM.PUSH,
+    'POP': ASM.POP,
+    'CALL': ASM.CALL,
+    'INT': ASM.INT,
 }
 
 OP0 = {
     'NOP': ASM.NOP,
-    'HLT': ASM.HLT
+    'HLT': ASM.HLT,
+    'RET': ASM.RET,
+    'IRET': ASM.IRET,
+    'STI': ASM.STI,
+    'CLI': ASM.CLI,
 }
 
 OP2SET = set(OP2.values())
@@ -40,10 +57,13 @@ OP1SET = set(OP1.values())
 OP0SET = set(OP0.values())
 
 REGISTERS = {
-    'A': pin.A,
-    'B': pin.B,
-    'C': pin.C,
-    'D': pin.D,
+    "A": pin.A,
+    "B": pin.B,
+    "C": pin.C,
+    "D": pin.D,
+    "SS": pin.SS,
+    "SP": pin.SP,
+    "CS": pin.CS,
 }
 
 
@@ -53,7 +73,7 @@ class Code(object):
     TYPE_LABEL = 2
 
     def __init__(self, number, source: str):
-        self.number = number
+        self.numer = number
         self.source = source.upper()
         self.op = None
         self.dst = None
@@ -69,6 +89,7 @@ class Code(object):
             return OP1[self.op]
         if self.op in OP0:
             return OP0[self.op]
+        raise SyntaxError(self)
 
     def get_am(self, addr):
         global marks
@@ -91,7 +112,6 @@ class Code(object):
         match = re.match(r'^\[(.+)\]$', addr)
         if match and match.group(1) in REGISTERS:
             return pin.AM_RAM, REGISTERS[match.group(1)]
-
         raise SyntaxError(self)
 
     def prepare_source(self):
@@ -116,6 +136,7 @@ class Code(object):
 
     def compile_code(self):
         op = self.get_op()
+
         amd, dst = self.get_am(self.dst)
         ams, src = self.get_am(self.src)
 
@@ -141,10 +162,11 @@ class Code(object):
         return [ir, dst, src]
 
     def __repr__(self):
-        return f'[{self.number}] - {self.source}'
+        return f'[{self.numer}] - {self.source}'
 
 
 class SyntaxError(Exception):
+
     def __init__(self, code: Code, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.code = code
@@ -156,20 +178,22 @@ def compile_program():
 
     with open(inputfile, encoding='utf8') as file:
         lines = file.readlines()
-        for index, line in enumerate(lines):
-            source = line.strip()
-            if ';' in source:
-                match = annotation.match(source)
-                source = match.group(1)
-            if not source:
-                continue
-            code = Code(index + 1, source)
-            codes.append(code)
+
+    for index, line in enumerate(lines):
+        source = line.strip()
+        if ';' in source:
+            match = annotation.match(source)
+            source = match.group(1)
+        if not source:
+            continue
+        code = Code(index + 1, source)
+        codes.append(code)
 
     code = Code(index + 2, 'HLT')
     codes.append(code)
 
     result = []
+
     current = None
     for var in range(len(codes) - 1, -1, -1):
         code = codes[var]
@@ -199,7 +223,8 @@ def main():
     except SyntaxError as e:
         print(f'Syntax error at {e.code}')
         return
-    print('compile program.asm finished')
+
+    print('compile program.asm finished!!!')
 
 
 if __name__ == '__main__':

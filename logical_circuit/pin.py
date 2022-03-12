@@ -1,3 +1,5 @@
+# coding=utf-8
+
 MSR = 1
 MAR = 2
 MDR = 3
@@ -20,7 +22,6 @@ ES = 19
 VEC = 20
 T1 = 21
 T2 = 22
-
 
 MSR_OUT = MSR
 MAR_OUT = MAR
@@ -83,8 +84,27 @@ PC_OUT = PC_CS
 PC_IN = PC_CS | PC_WE
 PC_INC = PC_CS | PC_WE | PC_EN
 
+_OP_SHIFT = 17
+
+OP_ADD = 0
+OP_SUB = 1 << _OP_SHIFT
+OP_INC = 2 << _OP_SHIFT
+OP_DEC = 3 << _OP_SHIFT
+OP_AND = 4 << _OP_SHIFT
+OP_OR = 5 << _OP_SHIFT
+OP_XOR = 6 << _OP_SHIFT
+OP_NOT = 7 << _OP_SHIFT
+
+ALU_OUT = 1 << 20
+ALU_PSW = 1 << 21
+ALU_INT_W = 1 << 22
+ALU_INT = 1 << 23
+
+ALU_STI = ALU_INT_W
+ALU_CLI = ALU_INT_W | ALU_INT
+
 CYC = 2 ** 30
-HTL = 2 ** 31
+HLT = 2 ** 31
 
 ADDR2 = 1 << 7
 ADDR1 = 1 << 6

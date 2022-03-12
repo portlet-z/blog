@@ -1,3 +1,5 @@
+# coding=utf-8
+
 import os
 import pin
 import assembly as ASM
@@ -5,7 +7,9 @@ import assembly as ASM
 dirname = os.path.dirname(__file__)
 filename = os.path.join(dirname, 'micro.bin')
 
-micro = [pin.HTL for _ in range(0x10000)]
+micro = [pin.HLT for _ in range(0x10000)]
+
+CJMPS = {ASM.JO, ASM.JNO, ASM.JZ, ASM.JNZ, ASM.JP, ASM.JNP}
 
 
 def compile_addr2(addr, ir, psw, index):
@@ -23,6 +27,7 @@ def compile_addr2(addr, ir, psw, index):
     if am not in INST[op]:
         micro[addr] = pin.CYC
         return
+
     EXEC = INST[op][am]
     if index < len(EXEC):
         micro[addr] = EXEC[index]
@@ -30,8 +35,36 @@ def compile_addr2(addr, ir, psw, index):
         micro[addr] = pin.CYC
 
 
+def get_condition_jump(exec, op, psw):
+    overflow = psw & 1
+    zero = psw & 2
+    parity = psw & 4
+
+    if op == ASM.JO and overflow:
+        return exec
+    if op == ASM.JNO and not overflow:
+        return exec
+    if op == ASM.JZ and zero:
+        return exec
+    if op == ASM.JNZ and not zero:
+        return exec
+    if op == ASM.JP and parity:
+        return exec
+    if op == ASM.JNP and not parity:
+        return exec
+    return [pin.CYC]
+
+
+def get_interrupt(exec, op, psw):
+    interrupt = psw & 8
+    if interrupt:
+        return exec
+    return [pin.CYC]
+
+
 def compile_addr1(addr, ir, psw, index):
     global micro
+    global CJMPS
 
     op = ir & 0xfc
     amd = ir & 3
@@ -40,10 +73,17 @@ def compile_addr1(addr, ir, psw, index):
     if op not in INST:
         micro[addr] = pin.CYC
         return
+
     if amd not in INST[op]:
         micro[addr] = pin.CYC
         return
+
     EXEC = INST[op][amd]
+    if op in CJMPS:
+        EXEC = get_condition_jump(EXEC, op, psw)
+    if op == ASM.INT:
+        EXEC = get_interrupt(EXEC, op, psw)
+
     if index < len(EXEC):
         micro[addr] = EXEC[index]
     else:
@@ -59,6 +99,7 @@ def compile_addr0(addr, ir, psw, index):
     if op not in INST:
         micro[addr] = pin.CYC
         return
+
     EXEC = INST[op]
     if index < len(EXEC):
         micro[addr] = EXEC[index]
@@ -87,9 +128,10 @@ for addr in range(0x10000):
     else:
         compile_addr0(addr, ir, psw, index)
 
+
 with open(filename, 'wb') as file:
     for var in micro:
         value = var.to_bytes(4, byteorder='little')
         file.write(value)
 
-print("Compile micro instruction finish!!!")
+print('Compile micro instruction finish!!!')
