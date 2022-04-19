@@ -46,3 +46,70 @@ context.publishEvent(new UserRegisterEvent(context));
 ```
 
 - BeanFactory与ApplicationContext并不仅仅是简单接口继承的关系，ApplicationConte xt组合并扩展了BeanFactory的功能
+
+## BeanFactory不会做的事情
+
+- 不会主动调用BeanFactory后处理器
+
+- 不会主动添加Bean后处理器
+
+- 不会主动初始化单例
+
+- 不会解析beanFactory还不会解析${}, #{}
+
+```java
+public class Main {
+    public static void main(String[] args) {
+        DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
+        //bean的定义(class, scope, 初始化, 销毁)
+        AbstractBeanDefinition beanDefinition =
+                BeanDefinitionBuilder.genericBeanDefinition(Config.class).setScope("singleton").getBeanDefinition();
+        beanFactory.registerBeanDefinition("config", beanDefinition);
+        //给BeanFactory添加一些常用的后处理器
+        AnnotationConfigUtils.registerAnnotationConfigProcessors(beanFactory);
+        //BeanFactory后处理器主要功能，补充了一些bean定义
+        beanFactory.getBeansOfType(BeanFactoryPostProcessor.class).values().forEach(beanFactoryPostProcessor -> {
+            beanFactoryPostProcessor.postProcessBeanFactory(beanFactory);
+        });
+        //Bean后处理器，针对bean的生命周期的各个阶段提供扩展，例如@Autowired, @Resource
+        beanFactory.getBeansOfType(BeanPostProcessor.class).values().forEach(beanFactory::addBeanPostProcessor);
+        for (String name : beanFactory.getBeanDefinitionNames()) {
+            System.out.println(name);
+        }
+        //准备好所有单例
+        beanFactory.preInstantiateSingletons();
+        System.out.println(beanFactory.getBean(Bean2.class).getBean1());
+    }
+
+    @Configuration
+    static class Config {
+        @Bean
+        public Bean1 bean1() {
+            return new Bean1();
+        }
+
+        @Bean
+        public Bean2 bean2() {
+            return new Bean2(bean1());
+        }
+    }
+
+    static class Bean1 {
+        public Bean1() {
+            System.out.println("Bean1 init");
+        }
+    }
+
+    static class Bean2 {
+        private Bean1 bean1;
+
+        public Bean2(Bean1 bean1) {
+            this.bean1 = bean1;
+            System.out.println("Bean2 init");
+        }
+        public Bean1 getBean1() {
+            return bean1;
+        }
+    }
+}
+```
