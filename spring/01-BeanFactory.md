@@ -113,3 +113,43 @@ public class Main {
     }
 }
 ```
+
+## ApplicationContext的实现
+
+```java
+    //较为经典的容器，基于classpath下的xml格式配置文件来创建
+    private static void testClassPathXmlApplicationContext() {
+        ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext("classpath:b01.xml");
+        for (String name : context.getBeanDefinitionNames()) {
+            System.out.println(name);
+        }
+        System.out.println(context.getBean(Bean2.class).getBean1());
+    }
+
+    //基于磁盘路径下的xml格式配置文件来创建
+    private static void testFileSystemXmlApplicationContext() {
+        FileSystemXmlApplicationContext context = new FileSystemXmlApplicationContext("//Users/portlet/Developer/code_source/src/main/resources/b01.xml");
+        for (String name : context.getBeanDefinitionNames()) {
+            System.out.println(name);
+        }
+        System.out.println(context.getBean(Bean2.class).getBean1());
+    }
+
+    static class Bean1 {
+        public Bean1() {
+            System.out.println("Bean1 init");
+        }
+    }
+
+    static class Bean2 {
+        private Bean1 bean1;
+
+        public Bean1 getBean1() {
+            return bean1;
+        }
+
+        public void setBean1(Bean1 bean1) {
+            this.bean1 = bean1;
+        }
+    }
+```
