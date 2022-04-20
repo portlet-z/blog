@@ -125,7 +125,7 @@ public class Main {
         }
         System.out.println(context.getBean(Bean2.class).getBean1());
     }
-    
+
     //BeanFactory实现读取xml配置
     private static void testBeanFactoryXml() {
         DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
@@ -149,7 +149,7 @@ public class Main {
         }
         System.out.println(context.getBean(Bean2.class).getBean1());
     }
-    
+
     //基于Java配置类来创建
     private static void testAnnotationConfigApplicationContext() {
         AnnotationConfigApplicationContext context =
@@ -167,7 +167,7 @@ public class Main {
             System.out.println(name);
         }
     }
-    
+
     @Configuration
     static class WebConfig {
         @Bean
