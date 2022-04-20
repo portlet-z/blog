@@ -117,13 +117,28 @@ public class Main {
 ## ApplicationContext的实现
 
 ```java
-    //较为经典的容器，基于classpath下的xml格式配置文件来创建
+    //较为经典的容器，基于classpath下的xml格式配置文件来创建
     private static void testClassPathXmlApplicationContext() {
         ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext("classpath:b01.xml");
         for (String name : context.getBeanDefinitionNames()) {
             System.out.println(name);
         }
         System.out.println(context.getBean(Bean2.class).getBean1());
+    }
+    
+    //BeanFactory实现读取xml配置
+    private static void testBeanFactoryXml() {
+        DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
+        System.out.println("读取之前");
+        for (String name : beanFactory.getBeanDefinitionNames()) {
+            System.out.println(name);
+        }
+        System.out.println("读取之后");
+        XmlBeanDefinitionReader reader = new XmlBeanDefinitionReader(beanFactory);
+        reader.loadBeanDefinitions(new ClassPathResource("b01.xml"));
+        for (String name : beanFactory.getBeanDefinitionNames()) {
+            System.out.println(name);
+        }
     }
 
     //基于磁盘路径下的xml格式配置文件来创建
@@ -133,6 +148,60 @@ public class Main {
             System.out.println(name);
         }
         System.out.println(context.getBean(Bean2.class).getBean1());
+    }
+    
+    //基于Java配置类来创建
+    private static void testAnnotationConfigApplicationContext() {
+        AnnotationConfigApplicationContext context =
+                new AnnotationConfigApplicationContext(AppConfig.class);
+        for (String name : context.getBeanDefinitionNames()) {
+            System.out.println(name);
+        }
+    }
+
+    //基于Java配置来创建，用于Web环境
+    private static void testAnnotationConfigServletWebServerApplicationContext() {
+        AnnotationConfigServletWebServerApplicationContext context =
+                new AnnotationConfigServletWebServerApplicationContext(WebConfig.class);
+        for (String name : context.getBeanDefinitionNames()) {
+            System.out.println(name);
+        }
+    }
+    
+    @Configuration
+    static class WebConfig {
+        @Bean
+        public ServletWebServerFactory servletWebServerFactory() {
+            return new TomcatServletWebServerFactory();
+        }
+        @Bean
+        public DispatcherServlet dispatcherServlet() {
+            return new DispatcherServlet();
+        }
+        @Bean
+        public DispatcherServletRegistrationBean registrationBean(DispatcherServlet dispatcherServlet) {
+            return new DispatcherServletRegistrationBean(dispatcherServlet, "/");
+        }
+        @Bean("/hello")
+        public Controller controller1() {
+            return (request, response) -> {
+                response.getWriter().println("hello");
+                return null;
+            };
+        }
+    }
+
+    @Configuration
+    static class AppConfig {
+        @Bean
+        public Bean1 bean1() {
+            return new Bean1();
+        }
+
+        @Bean
+        public Bean2 bean2() {
+            return new Bean2();
+        }
     }
 
     static class Bean1 {
