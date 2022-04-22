@@ -38,4 +38,3 @@ public class MyBean implements BeanNameAware, InitializingBean, ApplicationConte
 - 上述b,c,d功能用@Autowired就能实现，为啥还用Aware接口
   - @Autowired的解析需要用到bean后处理器，属于扩展功能
   - 而Aware接口属于内置功能，不加任何扩展，Spring就能识别。某些情况下，扩展功能会失效，而内置功能不会失效
-  
