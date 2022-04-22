@@ -1,7 +1,6 @@
 ## 后处理器作用：为Bean生命周期各个阶段提供扩展
 
 ```java
-
 public static void main(String[] args) {
     //GenericApplicationContext是一个【干净】的容器
     GenericApplicationContext context = new GenericApplicationContext();
@@ -90,7 +89,6 @@ class Bean4 {
                 '}';
     }
 }
-
 ```
 
 ## 常见的后处理器

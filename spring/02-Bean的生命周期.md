@@ -71,7 +71,6 @@ public class MyBeanPostProcessor implements InstantiationAwareBeanPostProcessor,
         return bean;
     }
 }
-
 ```
 
 ## 模板设计模式
@@ -104,5 +103,3 @@ public static void main(String[] args) {
         void inject(Object bean); //对依赖注入阶段扩展
     }
 ```
-
-
