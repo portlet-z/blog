@@ -54,6 +54,8 @@ public static void main(String[] args) {
   
   - ③注入ObjectFactory<F3> f3;
   
+  - ④从ApplicationContext中获取
+  
   ```java
   @Scope(value = "prototype", proxyMode = ScopedProxyMode.TARGET_CLASS)
   @Component
@@ -63,6 +65,20 @@ public static void main(String[] args) {
   @Component
   public class F3 {
   }
+  @Scope(value = "prototype")
+  @Component
+  public class F4 {
+  }
+  
+  @Lazy
+  @Autowired
+  private F1 f1;
+  
+  @Autowired
+  private F2 f2;
+  
   @Autowired
   private ObjectFactory<F3> f3;
+  
+  
   ```
