@@ -398,7 +398,88 @@ public class A13 {
 ### 代理demo2
 
 ```java
-
+public class A13 {
+    static class Target {
+        public void save() {
+            System.out.println("save()");
+        }
+        public void save(int i) {
+            System.out.println("save(int)");
+        }
+        public void save(long j) {
+            System.out.println("save(long)");
+        }
+    }
+    static class CglibProxy extends Target {
+        private MethodInterceptor methodInterceptor;
+        public void setMethodInterceptor(MethodInterceptor methodInterceptor) {
+            this.methodInterceptor = methodInterceptor;
+        }
+        static Method save0;
+        static Method save1;
+        static Method save2;
+        static MethodProxy save0Proxy;
+        static MethodProxy save1Proxy;
+        static MethodProxy save2Proxy;
+        static {
+            try {
+                save0 = Target.class.getMethod("save");
+                save1 = Target.class.getMethod("save", int.class);
+                save2 = Target.class.getMethod("save", long.class);
+                save0Proxy = MethodProxy.create(Target.class, CglibProxy.class, "()V", "save", "saveSuper");
+                save1Proxy = MethodProxy.create(Target.class, CglibProxy.class, "(I)V", "save", "saveSuper");
+                save2Proxy = MethodProxy.create(Target.class, CglibProxy.class, "(J)V", "save", "saveSuper");
+            } catch (NoSuchMethodException e) {
+                throw new NoSuchMethodError(e.getMessage());
+            }
+        }
+        public void saveSuper() {
+            super.save();
+        }
+        public void saveSuper(int i) {
+            super.save(i);
+        }
+        public void saveSuper(long j) {
+            super.save(j);
+        }
+        @Override
+        public void save() {
+            try {
+                methodInterceptor.intercept(this, save0, new Object[0], save0Proxy);
+            } catch (Throwable e) {
+                throw new UndeclaredThrowableException(e);
+            }
+        }
+        @Override
+        public void save(int i) {
+            try {
+                methodInterceptor.intercept(this, save1, new Object[]{i}, save1Proxy);
+            } catch (Throwable e) {
+                throw new UndeclaredThrowableException(e);
+            }
+        }
+        @Override
+        public void save(long j) {
+            try {
+                methodInterceptor.intercept(this, save2, new Object[]{j}, save2Proxy);
+            } catch (Throwable e) {
+                throw new UndeclaredThrowableException(e);
+            }
+        }
+    }
+    public static void main(String[] params) {
+        CglibProxy proxy = new CglibProxy();
+        Target target = new Target();
+        proxy.setMethodInterceptor((o, method, args, methodProxy) -> {
+            System.out.println("before");
+            //return method.invoke(target, args);
+            return methodProxy.invoke(target, args);
+        });
+        proxy.save();
+        proxy.save(1);
+        proxy.save(2L);
+    }
+}
 ```
 
 - demo中的CglibProxy类可以类比为用cglib动态代理生成的类
