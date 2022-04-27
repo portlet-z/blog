@@ -317,7 +317,6 @@ public class A12 {
         foo.bar(4);
     }
 }
-
 ```
 
 - demo3中的JdkProxy类可以类比为用jdk动态代理生成的类
@@ -483,3 +482,245 @@ public class A13 {
 ```
 
 - demo中的CglibProxy类可以类比为用cglib动态代理生成的类
+
+## MethodProxy原理
+
+- methodProxy.invoke(target, args); 参数为目标类
+
+```java
+public class TargetFastClass {
+    static Signature s0 = new Signature("save", "()V");
+    static Signature s1 = new Signature("save", "(I)V");
+    static Signature s2 = new Signature("save", "(J)V");
+    /**
+     * 获取目标方法编号
+     * Target: save() 0; save(int) 1; save(long) 2
+     * signature:包含方法名称，参数，返回值信息
+     */
+    public int getIndex(Signature signature) {
+        if (s0.equals(signature)) {
+            return 0;
+        } else if (s1.equals(signature)) {
+            return 1;
+        } else if (s2.equals(signature)) {
+            return 2;
+        } else {
+            return -1;
+        }
+    }
+    /**
+     * 根据方法编号，正常调用目标对象方法
+     */
+    public Object invoke(int index, Object target, Object[] args) {
+        if (index == 0) {
+            ((A13.Target) target).save();
+            return null;
+        } else if (index == 1) {
+            ((A13.Target) target).save((int)args[0]);
+            return null;
+        } else if (index == 2) {
+            ((A13.Target) target).save((long)args[0]);
+            return null;
+        } else {
+            throw new NoSuchMethodError("无此方法");
+        }
+    }
+    public static void main(String[] args) {
+        TargetFastClass fastClass = new TargetFastClass();
+        int index = fastClass.getIndex(new Signature("save", "(I)V"));
+        System.out.println(index);
+        fastClass.invoke(index, new A13.Target(), new Object[]{100});
+    }
+}
+```
+
+- methodProxy.invokeSuper(proxy, args); //参数为代理类
+
+```java
+public class ProxyFastClass {
+    static Signature s0 = new Signature("saveSuper", "()V");
+    static Signature s1 = new Signature("saveSuper", "(I)V");
+    static Signature s2 = new Signature("saveSuper", "(J)V");
+    /**
+     * 获取目标方法编号
+     * Proxy: saveSuper() 0; saveSuper(int) 1; saveSuper(long) 2
+     * signature:包含方法名称，参数，返回值信息
+     */
+    public int getIndex(Signature signature) {
+        if (s0.equals(signature)) {
+            return 0;
+        } else if (s1.equals(signature)) {
+            return 1;
+        } else if (s2.equals(signature)) {
+            return 2;
+        } else {
+            return -1;
+        }
+    }
+    /**
+     * 根据方法编号，正常调用目标对象方法
+     */
+    public Object invoke(int index, Object proxy, Object[] args) {
+        if (index == 0) {
+            ((A13.CglibProxy) proxy).saveSuper();
+            return null;
+        } else if (index == 1) {
+            ((A13.CglibProxy) proxy).saveSuper((int)args[0]);
+            return null;
+        } else if (index == 2) {
+            ((A13.CglibProxy) proxy).saveSuper((long)args[0]);
+            return null;
+        } else {
+            throw new NoSuchMethodError("无此方法");
+        }
+    }
+    public static void main(String[] args) {
+        ProxyFastClass fastClass = new ProxyFastClass();
+        int index = fastClass.getIndex(new Signature("saveSuper", "(I)V"));
+        System.out.println(index);
+        fastClass.invoke(index, new A13.CglibProxy(), new Object[]{100});
+    }
+}
+```
+
+## 切面
+
+- aspect 
+  
+  - 通知1(advice) + 切点1(pointcut)
+  
+  - 通知2(advice) + 切点2(pointcut)
+  
+  - 通知2(advice) + 切点2(pointcut)
+
+- advisor = 更细粒度的切面，包含一个通知和切点
+
+## Spring选择代理方式
+
+- proxyTargetClass = false, 目标实现了接口，用JDK代理实现
+
+- proxyTargetClass = false, 目标没有实现接口，用CGLIB代理实现
+
+- proxyTargetClass = true, 总是用CGLIB实现
+
+```java
+public class A14 {
+    public static void main(String[] args) {
+        //1. 备好切点
+        AspectJExpressionPointcut pointcut = new AspectJExpressionPointcut();
+        pointcut.setExpression("execution(* foo())");
+        //2. 备好通知
+        MethodInterceptor advice = invocation -> {
+            System.out.println("before");
+            Object result = invocation.proceed();
+            System.out.println("after");
+            return result;
+        };
+        //3. 备好切面
+        DefaultPointcutAdvisor advisor = new DefaultPointcutAdvisor(pointcut, advice);
+        //4. 创建代理
+        Target1 target = new Target1();
+        ProxyFactory factory = new ProxyFactory();
+        factory.setTarget(target);
+        factory.addAdvisor(advisor);
+        factory.setInterfaces(target.getClass().getInterfaces());
+        I1 proxy = (I1) factory.getProxy();
+        System.out.println(proxy.getClass());
+        proxy.foo();
+        proxy.bar();
+    }
+    interface I1{
+        void foo();
+        void bar();
+    }
+    static class Target1 implements I1 {
+        @Override
+        public void foo() {
+            System.out.println("target1 foo");
+        }
+        @Override
+        public void bar() {
+            System.out.println("target1 bar");
+        }
+    }
+    static class Target2 {
+        public void foo() {
+            System.out.println("target2 foo");
+        }
+        public void bar() {
+            System.out.println("target2 bar");
+        }
+    }
+}
+```
+
+- ProxyFactory是用来创建代理的核心实现，用AopProxyFactory选择具体代理实现
+  
+  - JdkDynamicAopProxy
+  
+  - ObjenesisCglibAopProxy
+
+## 切点匹配
+
+```java
+public class A15 {
+    public static void main(String[] args) throws NoSuchMethodException {
+        AspectJExpressionPointcut pt1 = new AspectJExpressionPointcut();
+        pt1.setExpression("execution(* bar())");
+        System.out.println(pt1.matches(T1.class.getMethod("foo"), T1.class));
+        System.out.println(pt1.matches(T1.class.getMethod("bar"), T1.class));
+
+        AspectJExpressionPointcut pt2 = new AspectJExpressionPointcut();
+        pt2.setExpression("@annotation(org.springframework.transaction.annotation.Transactional)");
+        System.out.println(pt2.matches(T1.class.getMethod("foo"), T1.class));
+        System.out.println(pt2.matches(T1.class.getMethod("bar"), T1.class));
+
+        StaticMethodMatcherPointcut pt3 = new StaticMethodMatcherPointcut() {
+            @Override
+            public boolean matches(Method method, Class<?> targetClass) {
+                //检查方法上是否加了Transactional注解
+                MergedAnnotations annotations = MergedAnnotations.from(method);
+                if (annotations.isPresent(Transactional.class)) {
+                    return true;
+                }
+                //查看类上是否加了Transactional注解
+                //annotations = MergedAnnotations.from(targetClass);
+                //查看类以及继承体系结构中是否加了Transactional注解
+                annotations = MergedAnnotations.from(targetClass, MergedAnnotations.SearchStrategy.TYPE_HIERARCHY);
+                if (annotations.isPresent(Transactional.class)) {
+                    return true;
+                }
+                return false;
+            }
+        };
+        System.out.println(pt3.matches(T1.class.getMethod("foo"), T1.class));
+        System.out.println(pt3.matches(T1.class.getMethod("bar"), T1.class));
+        System.out.println(pt3.matches(T2.class.getMethod("foo"), T2.class));
+        System.out.println(pt3.matches(T3.class.getMethod("foo"), T3.class));
+    }
+    static class T1 {
+        @Transactional
+        public void foo() {}
+        public void bar() {}
+    }
+    @Transactional
+    static class T2{
+        public void foo() {}
+        public void bar() {}
+    }
+    @Transactional
+    interface I3{
+        void foo();
+    }
+    static class T3 implements I3{
+        @Override
+        public void foo() {
+
+        }
+    }
+}
+```
+
+- 底层切点实现是如何匹配的：调用了aspectj的匹配方法
+
+- 比较关键的是实现了MethodMatcher接口，用来执行方法匹配
