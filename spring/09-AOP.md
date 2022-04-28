@@ -724,3 +724,155 @@ public class A15 {
 - 底层切点实现是如何匹配的：调用了aspectj的匹配方法
 
 - 比较关键的是实现了MethodMatcher接口，用来执行方法匹配
+
+## Advisor与@Aspect
+
+- findEligibleAdvisors找到有【资格】的Advisors
+  
+  - 有【资格】的Advisor一部分是低级的，可以由自己编写，如下例中的advisor3
+  
+  - 有【资格】的Advisor另一部分是高级的，解析@Aspect后获得
+
+- wrapIfNecessary:内部调用findEligibleAdvisors,只要返回集合不空，则表示需要创建代理
+
+```java
+public class A16 {
+    public static void main(String[] args) {
+        GenericApplicationContext context = new GenericApplicationContext();
+        context.registerBean("aspect1", Aspect1.class);
+        context.registerBean("config", Config.class);
+        context.registerBean(ConfigurationClassPostProcessor.class);
+        context.registerBean(AnnotationAwareAspectJAutoProxyCreator.class);
+        context.refresh();
+        for (String name : context.getBeanDefinitionNames()) {
+            System.out.println(name);
+        }
+        AnnotationAwareAspectJAutoProxyCreator creator = context.getBean(AnnotationAwareAspectJAutoProxyCreator.class);
+        List<Advisor> advisors = creator.findEligibleAdvisors(Target1.class, "target1");
+        for (Advisor advisor : advisors) {
+            System.out.println(advisor);
+        }
+        Object o1 = creator.wrapIfNecessary(new Target1(), "target1", "target1");
+        System.out.println(o1.getClass()); // class org.springframework.aop.framework.autoproxy.A16$Target1$$EnhancerBySpringCGLIB$$67fd3646
+        Object o2 = creator.wrapIfNecessary(new Target2(), "target2", "target2");
+        System.out.println(o2.getClass()); // class org.springframework.aop.framework.autoproxy.A16$Target2
+        ((Target1) o1).foo();
+    }
+    static class Target1 {
+        public void foo() {
+            System.out.println("target1 foo");
+        }
+    }
+    static class Target2{
+        public void bar() {
+            System.out.println("target2 bar");
+        }
+    }
+    @Aspect
+    static class Aspect1 {
+        @Before("execution(* foo())")
+        public void before() {
+            System.out.println("aspect1 before");
+        }
+        @After("execution(* foo())")
+        public void after() {
+            System.out.println("aspect1 after");
+        }
+    }
+    @Configuration
+    static class Config {
+        @Bean
+        public Advisor advisor3(MethodInterceptor advice3) {
+            AspectJExpressionPointcut pointcut = new AspectJExpressionPointcut();
+            pointcut.setExpression("execution(* foo())");
+            return new DefaultPointcutAdvisor(pointcut, advice3);
+        }
+        @Bean
+        public MethodInterceptor advice3() {
+            return invocation -> {
+                System.out.println("advice3 before");
+                Object result = invocation.proceed();
+                System.out.println("advice3 after");
+                return result;
+            };
+        }
+    }
+}
+```
+
+## 代理的创建时机
+
+- 初始化之后（无循环依赖时）
+
+- 实例创建后，依赖注入前（有循环依赖时），并暂存于二级缓存
+
+- 依赖注入与初始化不应该被增强，仍应被施加于原始对象
+
+- 创建 -> (\*) 依赖注入 -> 初始化 (\*) 
+
+```java
+public class A16_1 {
+    public static void main(String[] args) {
+        GenericApplicationContext context = new GenericApplicationContext();
+        context.registerBean(ConfigurationClassPostProcessor.class);
+        context.registerBean(AnnotationAwareAspectJAutoProxyCreator.class);
+        context.registerBean(CommonAnnotationBeanPostProcessor.class);
+        context.registerBean(AutowiredAnnotationBeanPostProcessor.class);
+        context.registerBean(Config.class);
+        context.refresh();
+    }
+    @Configuration
+    static class Config {
+        @Bean
+        public Advisor advisor(MethodInterceptor advice) {
+            AspectJExpressionPointcut pointcut = new AspectJExpressionPointcut();
+            pointcut.setExpression("execution(* foo())");
+            return new DefaultPointcutAdvisor(pointcut, advice);
+        }
+        @Bean
+        public MethodInterceptor advice() {
+            return (MethodInvocation invocation) -> {
+                System.out.println("before...");
+                return invocation.proceed();
+            };
+        }
+        @Bean
+        public Bean1 bean1() {
+            return new Bean1();
+        }
+        @Bean
+        public Bean2 bean2() {
+            return new Bean2();
+        }
+    }
+
+    static class Bean1 {
+        public void foo() {}
+        public Bean1() {
+            System.out.println("Bean1()");
+        }
+        @Autowired public void setBean2(Bean2 bean2) {
+            System.out.println("Bean1 setBean2(bean2) class is: " + bean2.getClass());
+        }
+        @PostConstruct
+        public void init() {
+            System.out.println("Bean1 init()");
+        }
+    }
+    static class Bean2 {
+        public Bean2() {
+            System.out.println("Bean2()");
+        }
+        @Autowired
+        public void setBean1(Bean1 bean1) {
+            System.out.println("Bean2 setBean1(bean1) class is: " + bean1.getClass());
+        }
+        @PostConstruct
+        public void init() {
+            System.out.println("Bean2 init()");
+        }
+    }
+}
+```
+
+## 高级切换Aspect转换从低级切面Advisor
