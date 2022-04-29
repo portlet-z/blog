@@ -892,14 +892,16 @@ public class A16_1 {
   - 其实无论ProxyFactory基于哪种方式创建代理，最后干活（调用Advice）的是一个MethodInvocation对象。因为advisor有多个，且一个套一个调用，因此需要一个调用链对象，即MethodInvocation.
   
   - MethodInvocation要知道advice有哪些，还要知道目标，调用次序如下
+
+- 
   
   | -> before1 -----------------------------------------------------------------------------------------
   
   |                                                                                                                                 |
   
   |        | -> before2 ------------------------------------                                                      |
-
-       |        |                                                                |                                                     |
+  
+  |        |                                                                |                                                     |
 
        |        |    |-> target ---------------------- 目标   advice2                                       advice1
 
@@ -911,7 +913,7 @@ public class A16_1 {
 
        | -> after1 --------------------------------------------------------------------------------------------
 
--  从上图看出，环绕通知才适合作为advice, 因此其他before, afterReturning, afterThrowing 都会被转换成环绕通知
+- 从上图看出，环绕通知才适合作为advice, 因此其他before, afterReturning, afterThrowing 都会被转换成环绕通知
 
 - 统一转换为环绕通知，体现的是设计模式中的适配器模式
   
