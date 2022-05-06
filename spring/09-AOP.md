@@ -892,8 +892,6 @@ public class A16_1 {
   - 其实无论ProxyFactory基于哪种方式创建代理，最后干活（调用Advice）的是一个MethodInvocation对象。因为advisor有多个，且一个套一个调用，因此需要一个调用链对象，即MethodInvocation.
   
   - MethodInvocation要知道advice有哪些，还要知道目标，调用次序如下
-
-- 
   
   | -> before1 -----------------------------------------------------------------------------------------
   
@@ -1011,6 +1009,144 @@ public class A16_2 {
         // 3. 创建并执行调用链 (环绕通知s + 目标)
         MethodInvocation methodInvocation = new ReflectiveMethodInvocation(null, target, Target.class.getMethod("foo"), new Object[0], Target.class, methodInterceptorList);
         methodInvocation.proceed();
+       /**
+         * 此步骤模拟调用链过程，是一个简单的递归过程
+         * 1. proceed()方法调用链中下一个环绕通知
+         * 2. 每个环绕通知内部继续调用proceed()
+         * 3. 调用到没有更多通知了，就调用目标方法
+         */
+    }
+}
+```
+
+## MethodInvocation.proceed()递归调用
+
+```java
+public class A17 {
+    static class Target {
+        public void foo() {
+            System.out.println("Target.foo()");
+        }
+    }
+    static class Advice1 implements MethodInterceptor {
+        @Override
+        public Object invoke(MethodInvocation invocation) throws Throwable {
+            System.out.println("Advice1.before()");
+            Object result = invocation.proceed();
+            System.out.println("Advice1.after()");
+            return result;
+        }
+    }
+    static class Advice2 implements MethodInterceptor {
+        @Override
+        public Object invoke(MethodInvocation invocation) throws Throwable {
+            System.out.println("Advice2.before()");
+            Object result = invocation.proceed();
+            System.out.println("Advice2.after()");
+            return result;
+        }
+    }
+    static class MyInvocation implements MethodInvocation {
+        private Object target;
+        private Method method;
+        private Object[] args;
+        List<MethodInterceptor> methodInterceptorList;
+        public MyInvocation(Object target, Method method, Object[] args, List<MethodInterceptor> methodInterceptorList) {
+            this.target = target;
+            this.method = method;
+            this.args = args;
+            this.methodInterceptorList = methodInterceptorList;
+        }
+        private int count = 1;
+        @Override
+        public Method getMethod() {
+            return method;
+        }
+        @Override
+        public Object[] getArguments() {
+            return args;
+        }
+        @Override
+        public Object proceed() throws Throwable {
+            if (count > methodInterceptorList.size()) {
+                return method.invoke(target, args);
+            }
+            MethodInterceptor methodInterceptor = methodInterceptorList.get(count++ -1);
+            return methodInterceptor.invoke(this);
+        }
+        @Override
+        public Object getThis() {
+            return target;
+        }
+        @Override
+        public AccessibleObject getStaticPart() {
+            return method;
+        }
+    }
+    public static void main(String[] args) throws Throwable {
+        Target target = new Target();
+        List<MethodInterceptor> list = List.of(new Advice1(), new Advice2());
+        MyInvocation myInvocation = new MyInvocation(target, Target.class.getMethod("foo"), new Object[0], list);
+        myInvocation.proceed();
+    }
+}
+```
+
+## 动态通知调用（有参数绑定通知链执行）
+
+- 有参数绑定的通知调用时还需要切点，对参数进行匹配及绑定
+
+- 复杂程度高，性能比无参数绑定的通知调用低
+
+```java
+public class A18 {
+    @Aspect
+    static class MyAspect {
+        @Before("execution(* foo(..))")
+        public void before1() {
+            System.out.println("before1");
+        }
+        @Before("execution(* foo(..)) && args(x)")
+        public void before2(int x) {
+            System.out.println("before2 " + x);
+        }
+    }
+    static class Target {
+        public void foo(int x) {
+            System.out.printf("target foo(%d)\n", x);
+        }
+    }
+    @Configuration
+    static class MyConfig {
+        @Bean
+        AnnotationAwareAspectJAutoProxyCreator proxyCreator() {
+            return new AnnotationAwareAspectJAutoProxyCreator();
+        }
+        @Bean
+        public MyAspect myAspect() {
+            return new MyAspect();
+        }
+    }
+    public static void main(String[] args) throws Throwable {
+        GenericApplicationContext context = new GenericApplicationContext();
+        context.registerBean(ConfigurationClassPostProcessor.class);
+        context.registerBean(MyConfig.class);
+        context.refresh();
+        AnnotationAwareAspectJAutoProxyCreator creator = context.getBean(AnnotationAwareAspectJAutoProxyCreator.class);
+        List<Advisor> list = creator.findEligibleAdvisors(Target.class, "target");
+        Target target = new Target();
+        ProxyFactory proxyFactory = new ProxyFactory();
+        proxyFactory.setTarget(target);
+        proxyFactory.addAdvisors(list);
+        Object proxy = proxyFactory.getProxy();
+        List<Object> interceptorList = proxyFactory.getInterceptorsAndDynamicInterceptionAdvice(Target.class.getMethod("foo", int.class), Target.class);
+        for (Object o : interceptorList) {
+            System.out.println(o);
+        }
+        System.out.println("-----------------------------");
+        ReflectiveMethodInvocation invocation = new ReflectiveMethodInvocation(proxy, target,
+                Target.class.getMethod("foo", int.class), new Object[]{100}, Target.class, interceptorList) {};
+        invocation.proceed();
     }
 }
 ```
