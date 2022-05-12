@@ -170,4 +170,214 @@ public class WebConfig {
 
 ## 返回值处理器
 
+- 常见的返回值处理器
+  
+  - ModelAndView, 分别获取其模型和视图名放入ModelAndViewContainer
+  
+  - 返回值类型为String时，把它当做视图名，放入ModelAndViewContainer
+  
+  - 返回值添加了@ModelAttribute注解时，将返回值作为模型，放入ModelAndViewContainer:此时需要找到默认视图名
+  
+  - 返回值类型为ResponseEntity时，此时走MessageConvert,并设置ModelAndViewContainer.requestHandled为true
+  
+  - 返回值类型为HttpHeaders时，会设置ModelAndViewContainer.requestHandled为true
+  
+  - 返回值添加了@ResponseBody注解时，此时走MessageConvert,并设置ModelAndViewContainer.requestHandled为true
 
+## MessageConverter
+
+- 作用：@ResponseBody是返回值处理器解析的，但具体转换工作是MessageConvert做的
+
+- 如何选择MediaType: 首先看@RequestMapping上有没有指定；其次看request的Accept头有没有指定；最后按MessageConverter的顺序，谁能谁先转换
+
+```java
+public class A28 {
+    public static void main(String[] args) throws Exception {
+        test1();
+        test2();
+        test3();
+        test4();
+    }
+    public User user() {
+        return null;
+    }
+    private static void test4() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        ServletWebRequest webRequest = new ServletWebRequest(request, response);
+        //request.addHeader("Accept", "application/xml");
+        //response.setContentType("application/json");
+        RequestResponseBodyMethodProcessor processor = new RequestResponseBodyMethodProcessor(List.of(
+                new MappingJackson2HttpMessageConverter(), new MappingJackson2XmlHttpMessageConverter()
+        ));
+        processor.handleReturnValue(
+                new User("纸箱子", 22),
+                new MethodParameter(A28.class.getMethod("user"), -1),
+                new ModelAndViewContainer(),
+                webRequest
+        );
+        System.out.println(new String(response.getContentAsByteArray(), StandardCharsets.UTF_8));
+    }
+    private static void test3() throws IOException {
+        MockHttpInputMessage message = new MockHttpInputMessage("""
+                {
+                    "name": "纸箱子",
+                    "age": 30
+                }
+                """.getBytes(StandardCharsets.UTF_8));
+        MappingJackson2HttpMessageConverter converter = new MappingJackson2HttpMessageConverter();
+        if (converter.canWrite(User.class, MediaType.APPLICATION_JSON)) {
+            Object read = converter.read(User.class, message);
+            System.out.println(read);
+        }
+    }
+    private static void test2() throws IOException {
+        MockHttpOutputMessage message = new MockHttpOutputMessage();
+        MappingJackson2XmlHttpMessageConverter converter = new MappingJackson2XmlHttpMessageConverter();
+        if (converter.canWrite(User.class, MediaType.APPLICATION_XML)) {
+            converter.write(new User("纸箱子", 22), MediaType.APPLICATION_XML, message);
+            System.out.println(message.getBodyAsString());
+        }
+    }
+    private static void test1() throws IOException {
+        MockHttpOutputMessage message = new MockHttpOutputMessage();
+        MappingJackson2HttpMessageConverter converter = new MappingJackson2HttpMessageConverter();
+        if (converter.canWrite(User.class, MediaType.APPLICATION_JSON)) {
+            converter.write(new User("纸箱子", 22), MediaType.APPLICATION_JSON, message);
+            System.out.println(message.getBodyAsString());
+        }
+    }
+    @Data
+    public static class User {
+        private String name;
+        private int age;
+        @JsonCreator
+        public User(@JsonProperty("name") String name, @JsonProperty("age") int age) {
+            this.name = name;
+            this.age = age;
+        }
+    }
+}
+```
+
+## @ResponseBodyAdvice
+
+- 返回响应体前包装
+
+```java
+public class A29 {
+    public static void main(String[] args) throws Exception {
+        AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext(WebConfig.class);
+        ServletInvocableHandlerMethod handlerMethod = new ServletInvocableHandlerMethod(
+                context.getBean(WebConfig.MyController.class),
+                WebConfig.MyController.class.getMethod("user")
+        );
+        handlerMethod.setDataBinderFactory(new ServletRequestDataBinderFactory(Collections.emptyList(), null));
+        handlerMethod.setParameterNameDiscoverer(new DefaultParameterNameDiscoverer());
+        handlerMethod.setHandlerMethodArgumentResolvers(argumentResolver(context));
+        handlerMethod.setHandlerMethodReturnValueHandlers(returnValueHandler(context));
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        handlerMethod.invokeAndHandle(new ServletWebRequest(request, response), new ModelAndViewContainer());
+        System.out.println(new String(response.getContentAsByteArray(), StandardCharsets.UTF_8));
+        context.close();
+    }
+    public static HandlerMethodReturnValueHandlerComposite returnValueHandler(AnnotationConfigApplicationContext context) {
+        List<ControllerAdviceBean> annotatedBeans = ControllerAdviceBean.findAnnotatedBeans(context);
+        List<Object> collect = annotatedBeans.stream().filter(b -> ResponseBodyAdvice.class.isAssignableFrom(b.getBeanType()))
+                .collect(Collectors.toList());
+        HandlerMethodReturnValueHandlerComposite composite = new HandlerMethodReturnValueHandlerComposite();
+        composite.addHandlers(List.of(
+                new ModelAndViewMethodReturnValueHandler(),
+                new ViewNameMethodReturnValueHandler(),
+                new ServletModelAttributeMethodProcessor(false),
+                new HttpEntityMethodProcessor(List.of(new MappingJackson2HttpMessageConverter())),
+                new HttpHeadersReturnValueHandler(),
+                new RequestResponseBodyMethodProcessor(List.of(new MappingJackson2HttpMessageConverter()), collect),
+                new ServletModelAttributeMethodProcessor(true)
+        ));
+        return composite;
+    }
+    public static HandlerMethodArgumentResolverComposite argumentResolver(AnnotationConfigApplicationContext context) {
+        HandlerMethodArgumentResolverComposite composite = new HandlerMethodArgumentResolverComposite();
+        composite.addResolvers(
+                new RequestParamMethodArgumentResolver(context.getDefaultListableBeanFactory(), false),
+                new PathVariableMethodArgumentResolver(),
+                new RequestHeaderMethodArgumentResolver(context.getDefaultListableBeanFactory()),
+                new ServletCookieValueMethodArgumentResolver(context.getDefaultListableBeanFactory()),
+                new ExpressionValueMethodArgumentResolver(context.getDefaultListableBeanFactory()),
+                new ServletRequestMethodArgumentResolver(),
+                new ServletModelAttributeMethodProcessor(false),
+                new RequestResponseBodyMethodProcessor(List.of(new MappingJackson2HttpMessageConverter())),
+                new ServletModelAttributeMethodProcessor(true),
+                new RequestParamMethodArgumentResolver(context.getDefaultListableBeanFactory(), true)
+        );
+        return composite;
+    }
+}
+@Data
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class Result {
+    private int code;
+    private String msg;
+    private Object data;
+    @JsonCreator
+    private Result(@JsonProperty("code") int code, @JsonProperty("data") Object data) {
+        this.code = code;
+        this.data = data;
+    }
+    private Result(int code, String msg) {
+        this.code = code;
+        this.msg = msg;
+    }
+    public static Result ok() {
+        return new Result(200, null);
+    }
+    public static Result ok(Object data) {
+        return new Result(200, data);
+    }
+    public static Result error(String msg) {
+        return new Result(500, "服务器内部错误" + msg);
+    }
+}
+@Configuration
+public class WebConfig {
+    @ControllerAdvice
+    static class MyControllerAdvice implements ResponseBodyAdvice<Object> {
+        @Override
+        public boolean supports(MethodParameter returnType, Class<? extends HttpMessageConverter<?>> converterType) {
+            if (returnType.getMethodAnnotation(ResponseBody.class) != null ||
+                    AnnotationUtils.findAnnotation(returnType.getContainingClass(), ResponseBody.class) != null) {
+                return true;
+            }
+            return true;
+        }
+        @Override
+        public Object beforeBodyWrite(Object body, MethodParameter returnType, MediaType selectedContentType, Class<? extends HttpMessageConverter<?>> selectedConverterType, ServerHttpRequest request, ServerHttpResponse response) {
+            if (body instanceof Result) {
+                return body;
+            }
+            return Result.ok(body);
+        }
+    }
+    @Controller
+    public static class MyController {
+        @ResponseBody
+        public User user() {
+            return new User("纸箱子", 22);
+        }
+    }
+    @Data
+    @AllArgsConstructor
+    static class User {
+        private String name;
+        private int age;
+    }
+}
+```
+
+## 异常处理
+
+- 能够重用参数解析器，返回值处理器，实现组件重用
+
+- 能够支持嵌套异常
