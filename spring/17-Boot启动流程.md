@@ -61,7 +61,7 @@ public class A39_1 {
 ## 阶段二：执行run方法
 
 1. 得到SpringApplicationRunListeners, 名字取的不好，实际是事件发布器
-   
+  
    - 发布application starting事件
    
    ```java
@@ -93,7 +93,7 @@ public class A39_1 {
    ```
 
 2. 封装启动args
-   
+  
    ```java
    public class A39_3 {
        public static void main(String[] args) throws Exception {
@@ -165,7 +165,7 @@ public class A39_1 {
    ```
 
 3. 准备Environment添加命令行参数（*）
-   
+  
    ```java
    public class Step3 {
        public static void main(String[] args) throws IOException  {
@@ -182,7 +182,7 @@ public class A39_1 {
    ```
 
 4. ConfigurationPropertySource处理（*）
-   
+  
    - 发布application environment已准备事件
    
    ```java
@@ -202,7 +202,7 @@ public class A39_1 {
    ```
 
 5. 通过EnvironmentPostProcessorApplicationContext进行env后处理（*）
-   
+  
    - application.properties,由StandardConfigDataLocationResovler解析
    
    - spring.application.json
@@ -236,7 +236,7 @@ public class A39_1 {
    ```
 
 6. 绑定spring.main到SpringApplication对象（*）
-   
+  
    ```java
    public class Step6 {
        public static void main(String[] args) throws Exception {
@@ -262,7 +262,7 @@ public class A39_1 {
    ```
 
 7. 打印banner（*）
-   
+  
    ```java
    
    ```
@@ -270,19 +270,19 @@ public class A39_1 {
 8. 创建容器
 
 9. 准备容器
-   
+  
    - 发布application context已初始化事件
 
 10. 加载bean定义
-    
+  
     - 发布application prepared事件
 
 11. refresh容器
-    
+  
     - 发布application started事件
 
 12. 执行runner
-    
+  
     - 发布application ready事件
     
     - 这其中有异常，发布application failed事件
@@ -290,7 +290,7 @@ public class A39_1 {
 ## 收获
 
 1. SpringApplication构造方法中所做的操作
-   
+  
    - 可以有多种源来加载bean定义
    
    - 应用类型推断
@@ -310,7 +310,7 @@ public class A39_1 {
 5. CommandLinRunner, ApplicationRunner作用
 
 6. 环境对象
-   
+  
    - 命令行PropertySource
    
    - ConfigurationPropertySources规范环境键名称
