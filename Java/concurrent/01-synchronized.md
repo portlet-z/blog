@@ -364,7 +364,7 @@ Space losses: 0 bytes internal + 4 bytes external = 4 bytes total
 
 #### 撤销-调用对象hashCode
 
-调用了对象的hashCode，但偏向锁的对象MarkWord中存储的是线程id，如果调用hashCode会导致偏向锁被撤销
+调用了对象的hashCode，但偏向锁的对象Mark Word中存储的是线程id，如果调用hashCode会导致偏向锁被撤销
 
 - 轻量级锁会在锁记录中记录hashCode
 - 重量级锁会在Monitor中记录hashCode
@@ -411,4 +411,158 @@ Space losses: 0 bytes internal + 4 bytes external = 4 bytes total
 ```
 
 #### 撤销-其它线程使用对象
+
+当其他线程使用偏向锁对象时，会将偏向锁升级为轻量级锁：添加VM启动参数禁用延迟偏向锁，对象创建的时候就是偏向锁标志：-XX:BiasedLockingStartupDelay=0
+
+```java
+@Slf4j
+public class TestBiased {
+    public static void main(String[] args) throws Exception {
+        Dog d = new Dog();
+        log.debug(ClassLayout.parseInstance(d).toPrintable());
+        new Thread(() -> {
+            synchronized (d) {
+                log.debug(ClassLayout.parseInstance(d).toPrintable());
+            }
+            synchronized (TestBiased.class) {
+                TestBiased.class.notify();
+            }
+        }, "t1").start();
+        new Thread(() -> {
+            synchronized (TestBiased.class) {
+                try {
+                    TestBiased.class.wait();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            synchronized (d) {
+                log.debug(ClassLayout.parseInstance(d).toPrintable()); //t1线程使用了偏向锁对象，此处打印的对象升级为了轻量级锁
+            }
+        }, "t2").start();
+    }
+}
+class Dog {}
+```
+
+打印结果
+
+```java
+OFF  SZ   TYPE DESCRIPTION               VALUE
+  0   8        (object header: mark)     0x0000000000000005 (biasable; age: 0)
+  8   4        (object header: class)    0xf800ef95
+ 12   4        (object alignment gap)    
+Instance size: 16 bytes
+Space losses: 0 bytes internal + 4 bytes external = 4 bytes total
+
+21:42:24.247 [t1] DEBUG com.bytebuf.concurrent.TestBiased - com.bytebuf.concurrent.Dog object internals:
+OFF  SZ   TYPE DESCRIPTION               VALUE
+  0   8        (object header: mark)     0x000001feefa52005 (biased: 0x000000007fbbe948; epoch: 0; age: 0)
+  8   4        (object header: class)    0xf800ef95
+ 12   4        (object alignment gap)    
+Instance size: 16 bytes
+Space losses: 0 bytes internal + 4 bytes external = 4 bytes total
+
+21:42:24.247 [t2] DEBUG com.bytebuf.concurrent.TestBiased - com.bytebuf.concurrent.Dog object internals:
+OFF  SZ   TYPE DESCRIPTION               VALUE
+  0   8        (object header: mark)     0x000000439b7ff180 (thin lock: 0x000000439b7ff180)
+  8   4        (object header: class)    0xf800ef95
+ 12   4        (object alignment gap)    
+Instance size: 16 bytes
+Space losses: 0 bytes internal + 4 bytes external = 4 bytes total
+```
+
+#### 撤销-调用 wait/notify
+
+示例与其他线程使用对象一样
+
+#### 批量重偏向
+
+如果对象被多个线程访问，但没有竞争，这时偏向了线程t1的对象仍有机会重新偏向t2,重偏向会重置对象的Thread ID
+
+当撤销偏向锁阈值超过20次后，jvm会觉得，我是不是偏向错了，于是会在给这些对象加锁时重新偏向至加锁线程
+
+```java
+public class TestBiased {
+    public static void main(String[] args) throws Exception {
+        Vector<Dog> list = new Vector<>();
+        new Thread(() -> {
+            for (int i = 0; i < 30; i++) {
+                Dog d = new Dog();
+                list.add(d);
+                synchronized (d) {
+                    log.debug(i + "\t" +ClassLayout.parseInstance(d).toPrintable());
+                }
+            }
+            synchronized (TestBiased.class) {
+                TestBiased.class.notify();
+            }
+        }, "t1").start();
+        new Thread(() -> {
+            synchronized (TestBiased.class) {
+                try {
+                    TestBiased.class.wait();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            log.debug("==============================");
+            for (int i = 0; i < 30; i++) {
+                Dog d = list.get(i);
+                synchronized (d) {
+                    log.debug(i + "\t" + ClassLayout.parseInstance(d).toPrintable()); 
+                }
+            }
+        }, "t2").start();
+    }
+}
+class Dog {}
+```
+
+```java
+//t1线程30次打印的都是偏向锁，threadID指向t1
+22:18:38.183 [t1] DEBUG com.bytebuf.concurrent.TestBiased - 0	com.bytebuf.concurrent.Dog object internals:
+OFF  SZ   TYPE DESCRIPTION               VALUE
+  0   8        (object header: mark)     0x0000020a8c588005 (biased: 0x0000000082a31620; epoch: 0; age: 0)
+  8   4        (object header: class)    0xf800ef95
+ 12   4        (object alignment gap)    
+Instance size: 16 bytes
+Space losses: 0 bytes internal + 4 bytes external = 4 bytes total
+......
+22:18:38.193 [t1] DEBUG com.bytebuf.concurrent.TestBiased - 29	com.bytebuf.concurrent.Dog object internals:
+OFF  SZ   TYPE DESCRIPTION               VALUE
+  0   8        (object header: mark)     0x0000020a8c588005 (biased: 0x0000000082a31620; epoch: 0; age: 0)
+  8   4        (object header: class)    0xf800ef95
+ 12   4        (object alignment gap)    
+Instance size: 16 bytes
+Space losses: 0 bytes internal + 4 bytes external = 4 bytes total
+
+22:18:38.193 [t2] DEBUG com.bytebuf.concurrent.TestBiased - ==============================
+//t1线程使用了偏向锁对象，t2线程此处打印的对象升级为了轻量级锁
+22:18:38.193 [t2] DEBUG com.bytebuf.concurrent.TestBiased - 0	com.bytebuf.concurrent.Dog object internals:
+OFF  SZ   TYPE DESCRIPTION               VALUE
+  0   8        (object header: mark)     0x0000008e76dfef00 (thin lock: 0x0000008e76dfef00)
+  8   4        (object header: class)    0xf800ef95
+ 12   4        (object alignment gap)    
+Instance size: 16 bytes
+Space losses: 0 bytes internal + 4 bytes external = 4 bytes total 
+......
+
+22:18:38.198 [t2] DEBUG com.bytebuf.concurrent.TestBiased - 18	com.bytebuf.concurrent.Dog object internals:
+OFF  SZ   TYPE DESCRIPTION               VALUE
+  0   8        (object header: mark)     0x0000008e76dfef00 (thin lock: 0x0000008e76dfef00)
+  8   4        (object header: class)    0xf800ef95
+ 12   4        (object alignment gap)    
+Instance size: 16 bytes
+Space losses: 0 bytes internal + 4 bytes external = 4 bytes total
+// 第20次打印，发现t1线程不跟t2线程竞争锁对象了，此时对象又变为了偏向锁，threadID指向t2
+22:18:38.198 [t2] DEBUG com.bytebuf.concurrent.TestBiased - 19	com.bytebuf.concurrent.Dog object internals:
+OFF  SZ   TYPE DESCRIPTION               VALUE
+  0   8        (object header: mark)     0x0000020a8c588905 (biased: 0x0000000082a31622; epoch: 0; age: 0)
+  8   4        (object header: class)    0xf800ef95
+ 12   4        (object alignment gap)    
+Instance size: 16 bytes
+Space losses: 0 bytes internal + 4 bytes external = 4 bytes total
+
+```
 
