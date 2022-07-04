@@ -50,7 +50,7 @@
     <td>Biased</td>
   </tr>
   <tr>
-    <td colspan="4">ptr_to_lock_recrd:30</td>
+    <td colspan="4">ptr_to_lock_record:30</td>
     <td>00</td>
     <td>Lightweight Locked</td>
   </tr>
@@ -259,4 +259,156 @@ public static void method1() {
 - 在Java6之后自旋锁是自适应的，比如对象刚刚的一次自旋操作成功过，那么认为这次自旋成功的可能性会高，就多自旋几次；反之，就少自旋甚至不自旋，总之，比较智能
 - 自旋会占用cpu时间，单核cpu自旋就是浪费，多核cpu自旋才能发挥优势
 - Java7之后不能控制是否开启自旋功能
+
+### 4.偏向锁
+
+轻量级锁在没有竞争时（就自己这个线程），每次重入仍然需要执行cas操作
+
+Java6中引入了偏向锁来做进一步优化；只有第一次使用cas将线程ID设置到对象的Mark Word头，之后发现这个线程Id是自己的就表示没有竞争，不用重新cas.以后只有不发生竞争，这个对象就归该线程所有
+
+```java
+static final Object obj = new Object();
+public static void m1() {
+  synchronized(obj) {
+    //同步块A
+    m2();
+  }
+}
+public static void m2() {
+  synchronized(obj) {
+    //同步块B
+    m3();
+  }
+}
+public static void m3() {
+  synchronized(obj) {
+    //同步块C
+  }
+}
+```
+
+![](./images/偏向锁.png)
+
+#### 偏向状态
+
+一个对象创建时:
+
+- 如果开启了偏向锁（默认开启），那么对象创建后，mark word值为0x05即最后3位为101,这时他的thread, epoch, age都为0
+- 偏向锁默认是延迟的，不会在程序启动时立即生效，如果想避免延迟，可以加VM参数 -XX:BiasedLockingStartupDelay=0来禁用延迟
+- 如果没有开启偏向锁，那么对象创建后，markword值为0x01就最后3位为001，这时他的hashcode, age都为0，第一次用到hashcode时才会赋值
+
+查看对象头示例
+
+引入依赖
+
+```xml
+<dependency>
+  <groupId>org.openjdk.jol</groupId>
+  <artifactId>jol-core</artifactId>
+  <version>0.16</version>
+</dependency>
+```
+
+```java
+@Slf4j(topic = "c.TestBiased")
+public class TestBiased {
+    public static void main(String[] args) throws Exception {
+        Dog d = new Dog();
+        log.debug(ClassLayout.parseInstance(d).toPrintable());
+        Thread.sleep(4000);
+        log.debug(ClassLayout.parseInstance(new Dog()).toPrintable());
+    }
+}
+class Dog {}
+```
+
+打印结果
+
+```java
+18:40:25.348 [main] DEBUG c.TestBiased - com.bytebuf.biased.Dog object internals:
+OFF  SZ   TYPE DESCRIPTION               VALUE
+  0   8        (object header: mark)     0x0000000000000001 (non-biasable; age: 0)
+  8   4        (object header: class)    0xf800ef94
+ 12   4        (object alignment gap)    
+Instance size: 16 bytes
+Space losses: 0 bytes internal + 4 bytes external = 4 bytes total
+
+18:40:29.357 [main] DEBUG c.TestBiased - com.bytebuf.biased.Dog object internals:
+OFF  SZ   TYPE DESCRIPTION               VALUE
+  0   8        (object header: mark)     0x0000000000000005 (biasable; age: 0)  //4秒后再次创建对象为偏向状态
+  8   4        (object header: class)    0xf800ef94
+ 12   4        (object alignment gap)    
+Instance size: 16 bytes
+Space losses: 0 bytes internal + 4 bytes external = 4 bytes total
+```
+
+上面测试代码添加VM参数 -XX:-UseBiasedLocking禁用偏向锁，打印结果为
+
+```java
+18:44:22.873 [main] DEBUG c.TestBiased - com.bytebuf.biased.Dog object internals:
+OFF  SZ   TYPE DESCRIPTION               VALUE
+  0   8        (object header: mark)     0x0000000000000001 (non-biasable; age: 0)
+  8   4        (object header: class)    0xf800ef94
+ 12   4        (object alignment gap)    
+Instance size: 16 bytes
+Space losses: 0 bytes internal + 4 bytes external = 4 bytes total
+
+18:44:26.879 [main] DEBUG c.TestBiased - com.bytebuf.biased.Dog object internals:
+OFF  SZ   TYPE DESCRIPTION               VALUE
+  0   8        (object header: mark)     0x0000000000000001 (non-biasable; age: 0) //normal状态
+  8   4        (object header: class)    0xf800ef94
+ 12   4        (object alignment gap)    
+Instance size: 16 bytes
+Space losses: 0 bytes internal + 4 bytes external = 4 bytes total
+```
+
+#### 撤销-调用对象hashCode
+
+调用了对象的hashCode，但偏向锁的对象MarkWord中存储的是线程id，如果调用hashCode会导致偏向锁被撤销
+
+- 轻量级锁会在锁记录中记录hashCode
+- 重量级锁会在Monitor中记录hashCode
+
+```java
+public class TestBiased {
+    public static void main(String[] args) throws Exception {
+        Dog d = new Dog();
+        log.debug(ClassLayout.parseInstance(d).toPrintable());
+        Thread.sleep(4000);
+        Dog d1 = new Dog();
+        log.debug(ClassLayout.parseInstance(d1).toPrintable());
+        d1.hashCode();
+        log.debug(ClassLayout.parseInstance(d1).toPrintable());
+    }
+}
+class Dog {}
+```
+
+```java
+18:50:35.293 [main] DEBUG c.TestBiased - com.bytebuf.biased.Dog object internals:
+OFF  SZ   TYPE DESCRIPTION               VALUE
+  0   8        (object header: mark)     0x0000000000000001 (non-biasable; age: 0)
+  8   4        (object header: class)    0xf800ef94
+ 12   4        (object alignment gap)    
+Instance size: 16 bytes
+Space losses: 0 bytes internal + 4 bytes external = 4 bytes total
+
+18:50:39.300 [main] DEBUG c.TestBiased - com.bytebuf.biased.Dog object internals:
+OFF  SZ   TYPE DESCRIPTION               VALUE
+  0   8        (object header: mark)     0x0000000000000005 (biasable; age: 0)
+  8   4        (object header: class)    0xf800ef94
+ 12   4        (object alignment gap)    
+Instance size: 16 bytes
+Space losses: 0 bytes internal + 4 bytes external = 4 bytes total
+
+18:50:39.301 [main] DEBUG c.TestBiased - com.bytebuf.biased.Dog object internals:
+OFF  SZ   TYPE DESCRIPTION               VALUE
+  0   8        (object header: mark)     0x0000002752f6e201 (hash: 0x2752f6e2; age: 0) //调用hashCode方法后，偏向锁状态被撤销
+  8   4        (object header: class)    0xf800ef94
+ 12   4        (object alignment gap)    
+Instance size: 16 bytes
+Space losses: 0 bytes internal + 4 bytes external = 4 bytes total
+```
+
+#### 撤销-其它线程使用对象
 
