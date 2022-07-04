@@ -200,3 +200,28 @@ public static void method2() {
 
 ### 2.锁膨胀
 
+如果在尝试加轻量级锁的过程中,CAS操作无法成功，这时一种情况就是有其他线程为此对象加上了轻量级锁（有竞争），这事需要进行锁膨胀，将轻量级锁变为重量级锁
+
+```java
+static Object obj = new Object();
+public static void method1() {
+  synchronized(obj) {
+    //同步块
+  }
+}
+```
+
+- 当Thread-1进行轻量级加锁时，Thread-0已经对该对象加了轻量级锁
+
+![](./images/锁膨胀1.jpg)
+
+- 这时Thread-1加轻量级锁失败，进入锁膨胀过程
+  - 即为Object对象申请Monitor锁，让Object指向重量级锁地址
+  - 然后自己进入Monitor的EntryList BLOCKED
+
+![](./images/锁膨胀2.jpg)
+
+- 当Thread-0退出同步块解锁时，使用cas将Mark Word的值恢复给对象头。失败，这时会进入重量级锁流程，即按照Monitor地址找到Monitor对象，设置Owner为null, 唤醒EntryList中BLOCKED线程
+
+### 3.自旋优化
+
