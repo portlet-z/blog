@@ -566,3 +566,55 @@ Space losses: 0 bytes internal + 4 bytes external = 4 bytes total
 
 ```
 
+#### 批量撤销
+
+当撤销偏向锁阈值超过40次后，jvm会这样觉得，自己确实偏向错了，根本就不该偏向。于是整个类的所有对象都会变为不可偏向的，新建的对象也是不可偏向的
+
+```java
+@Slf4j(topic = "c.TestBiased")
+public class TestBiased {
+    static Thread t1, t2, t3;
+    public static void main(String[] args) throws Exception {
+        int loopNumber = 39;
+        Vector<Dog> list = new Vector<>();
+        t1 = new Thread(() -> {
+            for (int i = 0; i < loopNumber; i++) {
+                Dog d = new Dog();
+                list.add(d);
+                synchronized (d) {
+                    log.debug(i + "\t" +ClassLayout.parseInstance(d).toPrintable());
+                }
+            }
+            LockSupport.unpark(t2);
+        }, "t1");
+        t2 = new Thread(() -> {
+            LockSupport.park();
+            log.debug("==============================");
+            for (int i = 0; i < loopNumber; i++) {
+                Dog d = list.get(i);
+                synchronized (d) {
+                    log.debug(i + "\t" + ClassLayout.parseInstance(d).toPrintable());
+                }
+            }
+            LockSupport.unpark(t3);
+        }, "t2");
+        t3 = new Thread(() -> {
+            LockSupport.park();
+            log.debug("==============================");
+            for (int i = 0; i < loopNumber; i++) {
+                Dog d = list.get(i);
+                synchronized (d) {
+                    log.debug(i + "\t" + ClassLayout.parseInstance(d).toPrintable());
+                }
+            }
+        }, "t3");
+        t1.start();
+        t2.start();
+        t3.start();
+        t3.join();
+        log.debug(ClassLayout.parseInstance(new Dog()).toPrintable()); //当loopNumber >= 39时，此处打印的对象为非偏向锁
+    }
+}
+class Dog {}
+```
+
