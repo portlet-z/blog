@@ -216,3 +216,86 @@ public class Test {
 }
 ```
 
+## 异步模式之生产者/消费者
+
+### 定义
+
+- 与前面的保护性暂停中的GuardedObject不同，不需要产生和消费结果一样的线程一一对应
+- 消费队列可以用来平衡生产和消费的线程资源
+- 生产者仅负责产生结果数据，不关心数据该如何处理，而消费者专心处理结果数据
+- 消息队列是有容量限制的，满时不会再加入数据，空时不会再消耗数据
+- JDK中各种阻塞队列，采用的就是这种模式
+
+![](./images/消息队列.jpg)
+
+### 实现
+
+```java
+@AllArgsConstructor
+@ToString
+public final class Message {
+    @Getter
+    private int id;
+    @Getter
+    private Object value;
+}
+@Slf4j
+public class MessageQueue {
+    private LinkedList<Message> list = new LinkedList<>();
+    private int capacity;
+    public MessageQueue(int capacity) {
+        this.capacity = capacity;
+    }
+    public Message take() {
+        synchronized (list) {
+            //判断队列是否为空
+            while (list.isEmpty()) {
+                try {
+                    log.debug("队列为空，消费者线程等待");
+                    list.wait();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                //从队列头部获取消息并返回
+                Message message = list.removeFirst();
+                log.debug("已消费消息: {}", message);
+                list.notifyAll();
+                return message;
+            }
+        }
+        return null;
+    }
+    public void put(Message message) {
+        synchronized (list) {
+            //检查队列是否已满
+            while (list.size() == capacity) {
+                try {
+                    log.debug("队列已满，生产者线程等待");
+                    list.wait();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            //将消息加入队列尾部
+            list.addLast(message);
+            log.debug("已生产消息 {}", message);
+            list.notifyAll();
+        }
+    }
+}
+public class TestMessage {
+    public static void main(String[] args) {
+        MessageQueue queue = new MessageQueue(2);
+        for (int i = 0; i < 3; i++) {
+            int id = i;
+            new Thread(() -> {
+                queue.put(new Message(id, "值" + id));
+            }, "生产者" + i).start();
+        }
+        new Thread(() -> {
+            Message message = queue.take();
+        }, "消费者").start();
+    }
+}
+```
+
