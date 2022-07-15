@@ -195,5 +195,85 @@ ReentrantLock的条件变量比synchronized强大之处在于，他是支持多�
 - 竞争lock锁成功后，从await后继续执行
 
 ```java
+@Slf4j
+public class Test4 {
+    static ReentrantLock lock = new ReentrantLock();
+    static Condition waitCigaretteQueue = lock.newCondition();
+    static Condition waitBreakfastQueue = lock.newCondition();
+    static volatile boolean hasCigarette = false;
+    static volatile boolean hasBreakfast = false;
+    public static void main(String[] args) {
+        new Thread(() -> {
+            lock.lock();
+            try {
+                while (!hasCigarette) {
+                    try {
+                        waitCigaretteQueue.await();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+                log.debug("等到了烟");
+            } finally {
+                lock.unlock();
+            }
+        }).start();
+        new Thread(() -> {
+            lock.lock();
+            try {
+                while (!hasBreakfast) {
+                    try {
+                        waitBreakfastQueue.await();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+                log.debug("等到了早餐");
+            } finally {
+                lock.unlock();
+            }
+        }).start();
+        sleep(100);
+        sendBreakfast();
+        sleep(100);
+        sendCigarette();
+    }
+    private static void sleep(long mill) {
+        try {
+            Thread.sleep(mill);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+    private static void sendCigarette() {
+        lock.lock();
+        try {
+            log.debug("送烟来了");
+            hasCigarette = true;
+            waitCigaretteQueue.signal();
+        } finally {
+            lock.unlock();
+        }
+    }
+    private static void sendBreakfast() {
+        lock.lock();
+        try {
+            log.debug("送早餐来了");
+            hasBreakfast = true;
+            waitBreakfastQueue.signal();
+        } finally {
+            lock.unlock();
+        }
+    }
+}
+```
+
+打印结果
+
+```
+12:57:01.876 [main] DEBUG com.bytebuf.reentrant.Test4 - 送早餐来了
+12:57:01.881 [Thread-1] DEBUG com.bytebuf.reentrant.Test4 - 等到了早餐
+12:57:01.984 [main] DEBUG com.bytebuf.reentrant.Test4 - 送烟来了
+12:57:01.984 [Thread-0] DEBUG com.bytebuf.reentrant.Test4 - 等到了烟
 ```
 
