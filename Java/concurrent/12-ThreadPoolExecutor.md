@@ -373,3 +373,30 @@ Executor线程配置
 | maxQueueSize            | Integer.MAX_VALUE | 队列长度                       |
 | prestartminSpareThreads | false             | 核心线程是否在服务器启动时启动 |
 
+##  正确处理执行任务异常
+
+方法1：主动捉异常
+
+```java
+ExecutorService pool = Executors.newFixedThreadPool(1);
+pool.submit(() -> {
+ try {
+ 		log.debug("task1");
+ 		int i = 1 / 0;
+ } catch (Exception e) {
+ 		log.error("error:", e);
+ }
+});
+```
+
+方法2：使用 Future
+
+```java
+ExecutorService pool = Executors.newFixedThreadPool(1);
+Future<Boolean> f = pool.submit(() -> {
+ 		log.debug("task1");
+ 		int i = 1 / 0;
+ 		return true;
+});
+log.debug("result:{}", f.get());
+```
