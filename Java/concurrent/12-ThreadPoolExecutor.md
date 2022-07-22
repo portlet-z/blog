@@ -82,5 +82,149 @@ public static ExecutorService newCachedThreadPool() {
 - 队列采用了SynchronousQueue实现特点是，它没有容量，没有线程来取是放不进去的（一手交钱，一手交货）
 
 ```java
+@Slf4j
+public class TestSynchronousQueue {
+    public static void main(String[] args) throws InterruptedException {
+        SynchronousQueue<Integer> integers = new SynchronousQueue<>();
+        new Thread(() -> {
+            try {
+                log.debug("putting {}", 1);
+                integers.put(1);
+                log.debug("{} putted", 1);
+                log.debug("putting {}", 2);
+                integers.put(2);
+                log.debug("{} putted", 2);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }, "t1").start();
+        Thread.sleep(1000);
+        new Thread(() -> {
+            try {
+                log.debug("taking {}", 1);
+                integers.take();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }, "t2").start();
+        Thread.sleep(1000);
+        new Thread(() -> {
+            try {
+                log.debug("taking {}", 2);
+                integers.take();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }, "t3").start();
+    }
+}
+```
+
+打印结果
+
+```
+09:31:11.886 [t1] DEBUG com.bytebuf.executors.TestSynchronousQueue - putting 1
+09:31:12.886 [t2] DEBUG com.bytebuf.executors.TestSynchronousQueue - taking 1
+09:31:12.886 [t1] DEBUG com.bytebuf.executors.TestSynchronousQueue - 1 putted
+09:31:12.887 [t1] DEBUG com.bytebuf.executors.TestSynchronousQueue - putting 2
+09:31:13.891 [t3] DEBUG com.bytebuf.executors.TestSynchronousQueue - taking 2
+09:31:13.892 [t1] DEBUG com.bytebuf.executors.TestSynchronousQueue - 2 putted
+```
+
+> 整个线程池表现为线程数会根据任务量不断增长，没有上限，当任务执行完毕，空闲一分钟后会释放线程
+>
+> 适合任务数比较密集，但每个任务执行时间较短的情况
+
+## newSingleThreadExecutor
+
+```java
+public static ExecutorService newSingleThreadExecutor() {
+  return new FinalizableDelegatedExecutorService(new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>()));
+}
+```
+
+使用场景：
+
+希望多个任务排队执行。线程数固定为1，任务数多于1时，会放入无界队列排队。任务执行完毕，这唯一的线程也不会释放
+
+区别：
+- 自己创建一个单线程串行执行任务，如果任务执行失败而终止那么没有任何补救措施，而线程池还会创建一个线程，保证池的正常工作
+- Executors.newSingleThreadExecutor()线程个数始终为1，不能修改
+- FinializableDelegatedExecutorService应用的装饰器模式，只对外暴露了ExecutorService接口，因此不能调用ThreadPoolExecutor中特有的方法
+- Executors.newFixedThreadPool()初始为1，一会还可以修改。对外暴露的是ThreadPoolExecutor对象，可以强转后调用setCorePoolSize等方法进行修改
+
+## 提交任务
+
+```java
+// 执行任务
+void execute(Runnable command);
+// 提交任务task, 用返回值Future获得任务执行结果
+<T> Future<T> submit(Callable<T> task);
+// 提交tasks中所有任务
+<T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks) throws InterruptionException;
+// 提交tasks中所有任务,带超时时间
+<T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) throws InterruptionException;
+// 提交tasks中所有任务，哪个任务先成功执行，返回此任务执行结果，其它任务取消
+<T> Future<T> invokeAny(Collection<? extends Callable<T>> tasks) throws InterruptionException;
+// 提交tasks中所有任务，哪个任务先成功执行，返回此任务执行结果，其它任务取消,带超时时间
+<T> Future<T> invokeAny(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) throws InterruptionException;
+```
+
+## 关闭线程池
+
+- shutdown(): 线程池状态变为SHUTDOWN, 不会接收新任务，但已提交任务会执行完毕，此方法不会阻塞调用线程的执行
+
+```java
+    public void shutdown() {
+        final ReentrantLock mainLock = this.mainLock;
+        mainLock.lock();
+        try {
+            checkShutdownAccess();
+            // 修改线程池状态
+            advanceRunState(SHUTDOWN);
+            // 仅会打断空闲线程
+            interruptIdleWorkers();
+            onShutdown(); // hook for ScheduledThreadPoolExecutor
+        } finally {
+            mainLock.unlock();
+        }
+        // 尝试终结（没有运行的线程可以立刻中介，如果还有运行的线程也不会等）
+        tryTerminate();
+    }
+```
+
+- shutdownNow(): 线程池状态变为STOP, 不会接收新任务，会将队列中的任务返回，并用interrupt的方式中断正在执行的任务
+
+```java
+    public List<Runnable> shutdownNow() {
+        List<Runnable> tasks;
+        final ReentrantLock mainLock = this.mainLock;
+        mainLock.lock();
+        try {
+            checkShutdownAccess();
+            // 修改线程池的状态
+            advanceRunState(STOP);
+            // 打断所有的线程
+            interruptWorkers();
+            // 获取队列中剩余任务
+            tasks = drainQueue();
+        } finally {
+            mainLock.unlock();
+        }
+        // 尝试终结
+        tryTerminate();
+        return tasks;
+    }
+```
+
+- 其他方法
+
+```java
+// 不在RUNNING状态的线程池，此方法就返回true
+boolean isShutdown();
+// 线程池状态是否是TERMINATED
+boolean isTerminated();
+// 调用shutdown后，由于调用线程并不会等待所有任务运行结束，因此如果他想在线程池TERMINATED后做些事情，可以利用此方法等待
+boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException;
 ```
 
