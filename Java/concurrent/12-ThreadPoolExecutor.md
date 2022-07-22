@@ -228,3 +228,148 @@ boolean isTerminated();
 boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException;
 ```
 
+## 任务调度线程池
+
+在【任务调度线程池】功能加入之前，可以使用java.util.Timer来实现定时功能，Timer的优点在于简单易用，但由于所有任务都是由同一个线程来调度，因此所有任务都是串行执行的，同一时间只能有一个任务在执行，前一个任务的延迟或异常都将会影响到之后的任务。
+
+```java
+    public static void main(String[] args) {
+        Timer timer = new Timer();
+        TimerTask task1 = new TimerTask() {
+            @Override
+            public void run() {
+                log.debug("task 1");
+                sleep(1000);
+            }
+        };
+        TimerTask task2 = new TimerTask() {
+            @Override
+            public void run() {
+                log.debug("task 2");
+            }
+        };
+        // 使用timer添加两个任务，希望它们都在1s后执行
+        // 但由于timer内只有一个线程来顺序执行队列中的任务，因此【任务1】的延迟，影响了【任务2】的执行
+        timer.schedule(task1, 1000);
+        timer.schedule(task2, 1000);
+    }
+```
+
+## newScheduleThreadPool
+
+```java
+    public static void main(String[] args) {
+        ScheduledExecutorService pool = Executors.newScheduledThreadPool(2);
+        pool.schedule(() -> {
+            log.debug("task 1");
+            sleep(2000);
+        }, 1, TimeUnit.SECONDS);
+        pool.schedule(() -> {
+            log.debug("task 2");
+        }, 1, TimeUnit.SECONDS);
+    }
+```
+
+```java
+@Slf4j
+public class TestSchedule {
+    /**
+     * 让每周四18:00:00定时执行任务
+     * @param args
+     */
+    public static void main(String[] args) {
+        // 获取当前时间
+        LocalDateTime now = LocalDateTime.now();
+        log.debug("now {}", now);
+        // 获取周四时间
+        LocalDateTime time = now.withHour(18).withMinute(0).withSecond(0).withNano(0).with(DayOfWeek.TUESDAY);
+        // 如果当前时间 > 周四，必须找到下周四
+        if (now.compareTo(time) > 0) {
+            time = time.plusWeeks(1);
+        }
+        log.debug("time {}", time);
+        // initialDelay代表当前时间和周四的时间差， period一周的间隔时间
+        long initialDelay  = Duration.between(now, time).toMillis();
+        long period = 1000 * 60 * 60 * 24 * 7;
+        ScheduledExecutorService pool = Executors.newScheduledThreadPool(1);
+        pool.scheduleAtFixedRate(() -> {
+            log.debug("running");
+        }, initialDelay, period, TimeUnit.MILLISECONDS);
+    }
+}
+```
+
+## Tomcat线程池
+
+![](./images/Tomcat线程池.png)
+
+- LimitLatch用来限流，可以控制最大连接个数，类似JUC中的Semaphore
+- Acceptor只负责【接收新的socket连接】
+- Poller只负责监听socket channel是否有【可读的IO事件】
+- 一旦可读，封装一个任务对象【socketProcessor】，提交给Executor线程池处理
+- Executor线程池中的工作线程最终负责【处理请求】
+
+Tomcat线程池扩展了ThreadPoolExecutor,行为稍有不同
+
+- 如果线程数达到maximumPoolSize
+  - 这时不会立刻抛出RejectExecutionException异常
+  - 而是再次尝试将任务放入队列，如果还失败，才抛出RejectExecutionException异常
+
+```java
+    public void execute(Runnable command, long timeout, TimeUnit unit) {
+        this.submittedCount.incrementAndGet();
+        try {
+            super.execute(command);
+        } catch (RejectedExecutionException var9) {
+            if (!(super.getQueue() instanceof TaskQueue)) {
+                this.submittedCount.decrementAndGet();
+                throw var9;
+            }
+            TaskQueue queue = (TaskQueue)super.getQueue();
+            try {
+                if (!queue.force(command, timeout, unit)) {
+                    this.submittedCount.decrementAndGet();
+                    throw new RejectedExecutionException(sm.getString("threadPoolExecutor.queueFull"));
+                }
+            } catch (InterruptedException var8) {
+                this.submittedCount.decrementAndGet();
+                throw new RejectedExecutionException(var8);
+            }
+        }
+    }
+```
+
+TaskQueue.java
+
+```java
+    public boolean force(Runnable o, long timeout, TimeUnit unit) throws InterruptedException {
+        if (this.parent != null && !this.parent.isShutdown()) {
+            return super.offer(o, timeout, unit);
+        } else {
+            throw new RejectedExecutionException(sm.getString("taskQueue.notRunning"));
+        }
+    }
+```
+
+Connector配置
+
+| 配置项              | 默认值 | 说明                                 |
+| ------------------- | ------ | ------------------------------------ |
+| acceptorThreadCount | 1      | acceptor线程数量                     |
+| pollerThreadCount   | 1      | poller线程数量                       |
+| minSpareThreads     | 10     | 核心线程数量，即corePoolSize         |
+| maxThreads          | 100    | 最大线程数量，即maximumPoolSize      |
+| executor            | -      | Executor名称，用来引用下面的Executor |
+
+Executor线程配置
+
+| 配置项                  | 默认值            | 说明                           |
+| ----------------------- | ----------------- | ------------------------------ |
+| threadPriority          | 5                 | 线程优先级                     |
+| daemon                  | true              | 是否是守护线程                 |
+| minSpareThreads         | 25                | 核心线程数，即corePoolSize     |
+| maxThreads              | 200               | 最大线程数，即maximumPoolSize  |
+| maxIdleTime             | 60000             | 线程生存时间，默认1分钟        |
+| maxQueueSize            | Integer.MAX_VALUE | 队列长度                       |
+| prestartminSpareThreads | false             | 核心线程是否在服务器启动时启动 |
+
