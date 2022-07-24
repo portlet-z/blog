@@ -296,3 +296,30 @@ static final class FairSync extends Sync {
 
 ## 条件变量实现原理
 
+每个条件变量其实就对应着一个等待队列，其实现类是ConditionObject
+
+### await流程
+
+开始Thread-0持有锁，调用await，进入ConditionObject的addConditionWaiter流程，创建的Node状态为-2(Node.CONDITION),关联Thread-0,加入等待队列尾部
+
+![](./images/Condition-1.jpg)
+
+接下来进入AQS的fullyRelease流程，释放同步器上的锁
+
+![](./images/Condition-2.jpg)
+
+unparkAQS队列中的下一个节点，竞争锁，假设没有其他竞争线程，那么Thread-1竞争成功，park阻塞Thread-0
+
+![](./images/Condition-3.jpg)
+
+### signal流程
+
+假设Thread-1要来唤醒Thread-0,进入ConditionObject的doSignal流程，取得等待队列中第一个Node,即Thread-0所在Node
+
+![](./images/Condition-4.jpg)
+
+执行transferForSignal流程，将该Node加入AQS队列尾部，将Thread-0的waitStatus改为0， Thread-3的waitStatus改为-1
+
+![](./images/Condition-5.jpg)
+
+Thread-1释放锁，进入unlock流程
