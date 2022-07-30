@@ -10,3 +10,49 @@
      1. 获取key发现null key
      2. set key时，会使用启发式扫描，清除临近的null key, 启发次数与元素个数，是否发现null key有关
      3. remove时（推荐），因为一般使用ThreadLocal时都把它作为静态变量，因此GC无法回收
+
+```java
+@Slf4j
+public class TestThreadLocal {
+    public static void main(String[] args) {
+        test1();
+    }
+    private static void test2() {
+        for (int i = 0; i < 2; i++) {
+            new Thread(() -> {
+                log.debug("{}", Utils.getConnection());
+                log.debug("{}", Utils.getConnection());
+                log.debug("{}", Utils.getConnection());
+            }, "t" + (i + 1)).start();
+        }
+    }
+    private static void test1() {
+        for (int i = 0; i < 5; i++) {
+            new Thread(() -> {
+                log.debug("{}", Utils.getConnection());
+            }, "t" + (i + 1)).start();
+        }
+    }
+    static class Utils {
+        private static final ThreadLocal<Connection> tl = new ThreadLocal<>();
+        public static Connection getConnection() {
+            Connection connection = tl.get();
+            if (connection == null) {
+                connection = innerGetConnection();
+                tl.set(connection);
+            }
+            return connection;
+        }
+
+        private static Connection innerGetConnection() {
+            try {
+                return DriverManager.getConnection("jdbc:mysql://localhost:3306/mysql?useSSL=false", "root", "123456");
+            } catch (SQLException e) {
+                e.printStackTrace();
+                return null;
+            }
+        }
+    }
+}
+```
+
