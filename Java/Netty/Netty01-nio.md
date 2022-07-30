@@ -222,7 +222,13 @@ compact 方法，是把未读完的部分向前压缩，然后切换至写模式
 #### 💡 调试工具类
 
 ```java
+import io.netty.util.internal.MathUtil;
+import io.netty.util.internal.StringUtil;
+
+import java.nio.ByteBuffer;
+
 public class ByteBufferUtil {
+    private static final String NEWLINE = "\n";
     private static final char[] BYTE2CHAR = new char[256];
     private static final char[] HEXDUMP_TABLE = new char[256 * 4];
     private static final String[] HEXPADDING = new String[16];
@@ -312,7 +318,7 @@ public class ByteBufferUtil {
     }
 
     private static void appendPrettyHexDump(StringBuilder dump, ByteBuffer buf, int offset, int length) {
-        if (isOutOfBounds(offset, length, buf.capacity())) {
+        if (MathUtil.isOutOfBounds(offset, length, buf.capacity())) {
             throw new IndexOutOfBoundsException(
                     "expected: " + "0 <= offset(" + offset + ") <= offset + length(" + length
                             + ") <= " + "buf.capacity(" + buf.capacity() + ')');
