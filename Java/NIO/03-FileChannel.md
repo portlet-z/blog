@@ -193,3 +193,45 @@ public class TestFilesWalkTree {
     }
 }
 ```
+
+### 遍历删除文件
+
+```java
+    private static void deleteDirectory(String path) throws Exception {
+        Files.walkFileTree(Paths.get(path), new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                Files.delete(file);
+                return super.visitFile(file, attrs);
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                Files.delete(dir);
+                return super.postVisitDirectory(dir, exc);
+            }
+        });
+    }
+```
+
+### 拷贝多级目录
+
+```java
+public static void main(String[] args) throws Exception {
+    copyDirectory("C:\\data\\log", "C:\\data\\log-copy");
+}
+private static void copyDirectory(String source, String target) throws Exception {
+    Files.walk(Paths.get(source)).forEach(path -> {
+        try {
+            String tagetName = path.toString().replace(source, target);
+            if (Files.isDirectory(path)) {
+                Files.createDirectory(Paths.get(tagetName));
+            } else if (Files.isRegularFile(path)) {
+                Files.copy(path, Paths.get(tagetName));
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    });
+}
+```
