@@ -58,3 +58,83 @@ Netty在Java网络应用框架中的地位就好比：Spring框架在JavaEE开�
 </dependency>
 ```
 
+服务器端
+
+```java
+@Slf4j
+public class HelloServer {
+    public static void main(String[] args) {
+        // 1. 启动器，负责组装netty组件，启动服务器
+        new ServerBootstrap()
+                // 2. BossEventLoop, WorkerEventLoop(selector, thread), group组
+                .group(new NioEventLoopGroup())
+                // 3. 选择服务器的ServerSocketChannel实现
+                .channel(NioServerSocketChannel.class)
+                // 4. boss负责处理连接，worker(child)负责处理读写，决定了worker(child)能执行哪些操作(handler)
+                .childHandler(
+                        // 5. channel代表和客户端进行数据读写的通道  Initializer初始化，负责添加别的handler
+                        new ChannelInitializer<NioSocketChannel>() {
+                            @Override
+                            protected void initChannel(NioSocketChannel ch) throws Exception {
+                                // 6. 添加具体的handler
+                                // 将ByteBuf转为字符串
+                                ch.pipeline().addLast(new StringDecoder());
+                                // 自定义handler
+                                ch.pipeline().addLast(new ChannelInboundHandlerAdapter() {
+                                    // 读事件
+                                    @Override
+                                    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+                                        // 打印上一步转换好的字符串
+                                        log.debug("msg: {}", msg);
+                                    }
+                                });
+                            }
+                        })
+                .bind(8080);
+    }
+}
+```
+
+客户端
+
+```java
+@Slf4j
+public class HelloClient {
+    public static void main(String[] args) throws InterruptedException {
+        // 1. 启动类
+        new Bootstrap()
+                // 2. 添加EventLoopGroup
+                .group(new NioEventLoopGroup())
+                // 3. 选择客户端channel实现
+                .channel(NioSocketChannel.class)
+                // 4. 添加处理器
+                .handler(new ChannelInitializer<NioSocketChannel>() {
+                    // 在连接建立后被调用
+                    @Override
+                    protected void initChannel(NioSocketChannel ch) throws Exception {
+                        ch.pipeline().addLast(new StringEncoder());
+                    }
+                })
+                // 5. 连接到服务器
+                .connect(new InetSocketAddress("localhost", 8080))
+                .sync()
+                .channel()
+                // 6. 向服务器发送数据
+                .writeAndFlush("hello world");
+    }
+}
+```
+
+### 执行流程
+
+![](./images/hello.jpg)
+
+- 把channel理解为数据的通道
+- 把msg理解为流动的数据，最开始输入是ByteBuf, 但经过pipeline的加工，会变成其他类型对象，最后输出又变成ByteBuf
+- 把handler理解为数据的处理工序
+  - 工序有多道，合在一起就是pipeline, pipeline负责发布事件（读，读取完成。。。）传播给每个handler, handler对自己感兴趣的事件进行处理（重写了相应事件处理方法）
+  - handler又分为Inbound和Outbound两类
+- 把eventLoop理解为处理数据的工人
+  - 工人可以管理多个channel的io操作，并且一旦工人负责了某个channel,就要负责到底（绑定）
+  - 工人既可以执行io操作，也可以进行任务处理，每位工人有任务队列，队列里可以堆放多个channel的待处理任务，任务分为普通任务，定时任务
+  - 工人按照pipeline顺序，依次按照handler的规划（代码）处理任务，可以为每道工序指定不同的工人
