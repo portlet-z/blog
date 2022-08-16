@@ -142,6 +142,7 @@ public class RpcRequestHandler extends SimpleChannelInboundHandler<RpcRequestMes
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, RpcRequestMessage message) throws Exception {
         RpcResponseMessage responseMessage = new RpcResponseMessage();
+        responseMessage.setSequenceId(message.getSequenceId());
         try {
             final Object service = ServiceFactory.getService(Class.forName(message.getInterfaceName()));
             final Method method = service.getClass().getMethod(message.getMethodName(), message.getParameterTypes());
@@ -404,6 +405,136 @@ public class RpcClient {
         } finally {
             group.shutdownGracefully();
         }
+    }
+}
+```
+
+## 改造&优化
+
+### 客户端
+
+```java
+@Slf4j
+public class RpcClient {
+    public static void main(String[] args) {
+        HelloService service = getProxyService(HelloService.class);
+        System.out.println(service.sayHello("zhangsan"));
+//        System.out.println(service.sayHello("lisi"));
+//        System.out.println(service.sayHello("wangwu"));
+    }
+    public static <T> T getProxyService(Class<T> serviceClass) {
+        ClassLoader loader = serviceClass.getClassLoader();
+        Class<?>[] interfaces = new Class[]{serviceClass};
+        final Object o = Proxy.newProxyInstance(loader, interfaces, (proxy, method, args) -> {
+            // 1. 将方法调用转为消息对象
+            final RpcRequestMessage message = new RpcRequestMessage(SequenceIdGenerator.nextId(), serviceClass.getName(), method.getName(), method.getReturnType(), method.getParameterTypes(), args);
+            // 2. 将消息对象发送出去
+            getChannel().writeAndFlush(message);
+            // 3. 返回结果
+            final DefaultPromise<Object> promise = new DefaultPromise<>(getChannel().eventLoop());
+            RpcResponseHandler.PROMISE_MAP.put(message.getSequenceId(), promise);
+            // 4. 等待promise结果
+            promise.await();
+            if (promise.isSuccess()) {
+                return promise.getNow();
+            } else {
+                throw new RuntimeException(promise.cause());
+            }
+        });
+        return (T) o;
+    }
+    private static Channel channel = null;
+    private static final Object LOCK = new Object();
+    public static Channel getChannel() {
+        if (channel != null) {
+            return channel;
+        }
+        synchronized (LOCK) {
+            if (channel != null) {
+                return channel;
+            }
+            initChannel();
+            return channel;
+        }
+    }
+    public static void initChannel() {
+        NioEventLoopGroup group = new NioEventLoopGroup();
+        final Bootstrap bootstrap = new Bootstrap()
+                .group(group)
+                .channel(NioSocketChannel.class)
+                .handler(new ChannelInitializer<NioSocketChannel>() {
+                    @Override
+                    protected void initChannel(NioSocketChannel ch) throws Exception {
+                        ch.pipeline().addLast(new LengthFieldBasedFrameDecoder(1024, 12, 4, 0, 0));
+                        ch.pipeline().addLast(new LoggingHandler());
+                        ch.pipeline().addLast(new MessageCodecSharable());
+                        ch.pipeline().addLast(new RpcResponseHandler());
+                    }
+                });
+        try {
+            channel = bootstrap.connect("localhost", 8080).sync().channel();
+            channel.closeFuture().addListener(future -> group.shutdownGracefully());
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+### id生成器
+
+```java
+public class SequenceIdGenerator {
+    private static final AtomicInteger id = new AtomicInteger();
+    public static int nextId() {
+        return id.incrementAndGet();
+    }
+}
+```
+
+### 响应处理器
+
+```java
+@Slf4j
+public class RpcResponseHandler extends SimpleChannelInboundHandler<RpcResponseMessage>  {
+    public static final Map<Integer, Promise<Object>> PROMISE_MAP = new ConcurrentHashMap<>();
+    @Override
+    protected void channelRead0(ChannelHandlerContext ctx, RpcResponseMessage msg) throws Exception {
+        log.debug("{}", msg);
+        final Promise<Object> promise = PROMISE_MAP.get(msg.getSequenceId());
+        if (promise != null) {
+            final Object returnValue = msg.getReturnValue();
+            final Exception exceptionValue = msg.getExceptionValue();
+            if (exceptionValue != null) {
+                promise.setFailure(exceptionValue);
+            } else {
+                promise.setSuccess(returnValue);
+            }
+        }
+    }
+}
+```
+
+### 请求处理器
+
+```java
+public class RpcRequestHandler extends SimpleChannelInboundHandler<RpcRequestMessage> {
+    @Override
+    protected void channelRead0(ChannelHandlerContext ctx, RpcRequestMessage message) throws Exception {
+        RpcResponseMessage responseMessage = new RpcResponseMessage();
+        responseMessage.setSequenceId(message.getSequenceId());
+        try {
+            final Object service = ServiceFactory.getService(Class.forName(message.getInterfaceName()));
+            final Method method = service.getClass().getMethod(message.getMethodName(), message.getParameterTypes());
+            final Object invoke = method.invoke(service, message.getParameterValue());
+            responseMessage.setMessageType(message.getSequenceId());
+            responseMessage.setReturnValue(invoke);
+        } catch (Exception e) {
+            e.printStackTrace();
+            String msg = e.getCause().getMessage();
+            responseMessage.setExceptionValue(new Exception("远程调用出错: " + msg));
+        }
+        ctx.writeAndFlush(responseMessage);
     }
 }
 ```
