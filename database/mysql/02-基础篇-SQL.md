@@ -239,3 +239,36 @@ LIMIT 分页参数
 
 ## DCL
 
+- DCL(Data Control Language)数据控制语言，用来管理数据库用户，控制数据库的访问权限
+
+### 管理用户
+
+- 查询用户 `use mysql; select * from user;`
+- 创建用户 `create user '用户名@主机名' identified by '密码'`
+- 修改用户密码 `alter user '用户名@主机名' identified with mysql_native_password by '新密码';`
+- 删除用户 `drop user '用户名@主机名';`
+- 注意：
+  - 主机名可以使用%通配
+  - 这类SQL开发人员操作的比较少，主要是DBA(Data Administrator 数据库管理员)使用
+
+### 权限控制
+
+MySQL中定义了很多种权限，但是常用的就以下几种
+
+| 权限                | 说明               |
+| ------------------- | ------------------ |
+| ALL, ALL PRIVILEGES | 所有权限           |
+| SELECT              | 查询数据           |
+| INSERT              | 插入数据           |
+| UPDATE              | 更新数据           |
+| DELTE               | 删除数据           |
+| ALTER               | 修改表             |
+| DROP                | 删除数据库/表/视图 |
+| CREATE              | 创建数据库/表      |
+
+- 查询权限 `show grants for '用户名@密码'`
+- 授予权限 `grant 权限列表 on 数据库.表名 to '用户名@密码';`
+- 撤销权限 `revoke 权限列表 on 数据库.表名 from '用户名@密码';`
+- 注意
+  - 多个权限之间，使用逗号分隔
+  - 授权时，数据库名和表名可以使用*进行通配，代表所有
