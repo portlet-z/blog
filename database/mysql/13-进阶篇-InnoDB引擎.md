@@ -64,5 +64,66 @@ create table xxx ... tablespace ts_name;
 
 ## 事务原理
 
+- 事务是一组操作的集合，他是一个不可分割的工作单位，事务会把所有的操作作为一个整体一起向系统提交或撤销操作请求，即这些操作要么同时成功，要么同时失败
+- 特性
+  - 原子性(Atomicity): 事务是不可分割的最小操作单元，要么全部成功，要么全部失败
+  - 一致性(Consistency): 事务完成时，必须使所有的数据都保持一致
+  - 隔离性(Isolation): 数据库系统提供的隔离机制，保证事务在不受外部并发操作影响的的独立环境下运行
+  - 持久性(Durability): 事务一旦提交或回滚，它对数据库中的数据的改变就是永久的
+
+### redo log(持久性)
+
+- 重做日志，记录的是事务提交事数据页的物理修改，是用来实现事务的持久性
+- 该日志文件由两部分组成：重做日志缓冲区(redo log buffer)以及重做日志文件(redo log file),前者是在内存中，后者是在磁盘中。当事务提交之后会把所有修改信息都存到该日志文件中，用于在刷新脏页到磁盘，发生错误时，进行数据恢复使用
+
+### undo log(原子性)
+
+- 回滚日志，用于记录数据被修改前的信息，作业包含两个：提供回滚和MVCC(多版本并发控制)
+- undo log 和redo log记录物理日志不一样，他是逻辑日志。可以认为当delete一条记录时，undo log中会记录一条对应的insert记录，反之亦然。当update一条记录时，它记录一条对应相反的update记录。当执行rollback时，就可以从undo log中的逻辑记录读取到相应的内容并进行回滚
+- undo log销毁：undo log在事务执行时产生，事务提交时，并不会立即删除undo log,因为这些日志可能还用于MVCC
+- undo log存储：undo log采用段的方式进行管理和记录。存放在前面介绍的rollback segment回滚段中，内部包含1024个undo log segment
+
 ## MVCC
+
+### 基本概念
+
+- 当前读：读取的是记录的最新版本，读取时还要保证其他并发事务不能修改当前记录，会对读取的记录进行加锁。对于我们日常的操作，如: select ... lock in share mode(共享锁)， select ... for update, update, insert, delete(排他锁)都是一种当前读
+- 快照读：简单的select(不加锁)就是快照读。快照读读取的是记录数据的可见版本，有可能是历史数据，不加锁，是非阻塞读
+  - Read Committed: 每次select都生成一个快照读
+  - Repeatable Read: 开启事务后第一个select语句才是快照读的地方
+  - Serializable: 快照读会退化为当前读
+- MVCC: 全称Multi-Version Concurrency Control, 多版本并发控制。指维护一个数据的多个版本，使得读写操作没有冲突，快照读为MySQL实现MVCC提供了一个非阻塞读功能。MVCC的具体实现，还需要依赖于数据库记录中的三个隐式字段,undo log日志，read view
+
+### 实现原理
+
+- 记录中的隐藏字段
+
+| 隐藏字段    | 含义                                                         |
+| ----------- | ------------------------------------------------------------ |
+| DB_TRX_ID   | 最近修改事务ID,记录插入这条记录或最后一次修改该记录的事务ID  |
+| DB_ROLL_PTR | 回滚指针，指向这条记录的上一个版本，用于配合undo log,指向上一个版本 |
+| DB_ROW_ID   | 隐藏主键，如果表结构没有指定主键，将会生成改隐藏字段         |
+
+- undo log:
+  - 回滚日志：在insert, update, delete的时候产生的便于数据回滚的日志
+  - 当insert的时候，产生的undo log日志只在回滚时需要，在事务提交后，可立即删除
+  - 而update, delete的时候，产生的undo log日志不仅在回滚时需要，在快照读时也需要，不会被立即删除
+- undo log版本链：不同事务或相同事务对同一条记录进行修改，会导致该记录的undo log生成一条记录版本链，链表的头部是最新的旧记录，链表尾部是最早的记录
+- ReadView(读视图)是快照读SQL执行时MVCC提供数据的依据，记录并维护系统当前活跃的事务（未提交的）id。ReadView中包含了四个核心字段
+
+| 字段           | 含义                                               |
+| -------------- | -------------------------------------------------- |
+| m_ids          | 当前活跃的事务ID集合                               |
+| min_trx_id     | 最小活跃事务ID                                     |
+| max_trx_id     | 预分配事务ID, 当前最大事务ID+1(因为事务ID是自增的) |
+| creator_trx_id | ReadView创建者的事务ID                             |
+
+- 版本链数据访问规则：trx_id代表是当前事务ID
+  - trx_id == creator_trx_id ? 可以访问该版本：成立，说明数据是当前这个事务更改的
+  - trx_id < min_trx_id ? 可以访问该版本：成立，说明数据已经提交了
+  - trx_id > max_trx_id ? 不可以访问该版本：成立，说明该事务是在ReadView生成后才开启
+  - min_trx_id <= trx_id <= max_trx_id ? 如果trx_id不在m_ids中是可以放访问该版本的，说明数据已经提交
+- 不同的隔离级别，生成的ReadView的时机不同
+  - READ COMMITTED: 在事务中每一次执行快照读时生成ReadView
+  - REPEATABLE READ: 仅在事务中第一次执行快照读时生成ReadView后续复用该ReadView
 
