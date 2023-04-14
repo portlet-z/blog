@@ -44,9 +44,24 @@
     - mod关键字
     - 可嵌套
     - 可包含其他项(struct, enum, 常量, trait, 函数等)的定义
-  
-  
-  
+  - src/main.rs和src/lib.rs叫做crate roots:
+    - 这两个文件(任意一个)的内容形成了名为crate的模块，位于整个模块树的根部
+    - 整个模块树在隐式的crate模块下
+
+```rust
+mod front_of_house {
+  mod hosting {
+    fn add_to_waitlist() {}
+    fn seat_at_table() {}
+  }
+
+  mod serving {
+    fn take_order() {}
+    fn serve_order() {}
+    fn take_payment() {}
+  }
+}
+```
   
   
   
