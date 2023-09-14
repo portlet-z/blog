@@ -70,3 +70,64 @@ del 1.txt
 #### type
 
 - 用于显示文本文件内容
+
+```powershell
+D:\>type test.rar
+Rar!
+```
+
+#### 重定向">"
+
+```powershell
+ipconfig > ip.txt
+```
+
+#### 管道符"|"
+
+- 将当前命令执行的结果为后面命令的操作对象
+
+#### findstr
+
+- 查找文件内容(查找的某个字符串的内容)
+
+```powershell
+findstr 192 ip.txt
+```
+
+## 网络相关操作
+
+#### 配置TCP/IP参数
+
+- IP地址:标识了网站中的某一台主机
+- 子网掩码：用于标识你的IP所处的网络范围，子网掩码越大，网络范围越小
+- 默认网关：标识主机直连的路由器的IP地址
+- DNS服务器：用于域名解析的
+
+```powershell
+#静态配置IP地址，子网掩码，默认网关
+netsh interface ip set address "WLAN" static 192.168.21.231 255.255.255.0 192.168.31.1
+#自动获取TCP/IP参数
+netsh interface ip set address "WLAN" dhcp
+#静态配置DNS服务器
+netsh interface ip set dnsserver "WLAN" static 114.114.114.114
+#添加备用DNS服务器
+netsh interface ip add dnsserver "WLAN" 8.8.8.8 index=2  #index=2是索引，表示备用DNS
+#自动获取DNS服务器
+netsh interface ip set dnsserver "WLAN" dhcp
+```
+
+#### 查看TCP/IP参数，用ipconfig
+
+```powershell
+# 查看所有网卡的TCP/IP参数（IP地址，子网掩码，默认网关）
+ipconfig
+# 查看所有网卡的TCP/IP参数（IP地址，子网掩码，默认网关，mac地址，dhcp地址，dns地址，主机名）
+ipconfig /all
+# 释放TCP/IP参数
+ipconfig /release
+# 重新获取TCP/IP参数
+ipconfig /renew
+# 刷新dns缓存
+ipconfig /flushdns
+```
+
