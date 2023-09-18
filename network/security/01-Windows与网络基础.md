@@ -342,3 +342,51 @@ convert h:fs:ntfs  # h 表示的是需要转换的盘符
 
 ## 注册表
 
+#### 概述
+
+- 注册表是Windows操作系统，硬件设备以及客户应用程序得以正常运行和保存设置的核心“数据库”，也可以说是一个非常巨大的树状分层结构的数据库系统
+- 注册表记录了用户安装在计算机上的软件和每个程序的相互关联信息，他包括了计算机的硬件配置，包括自动配置的即插即用的设置和已有的各种设备说明，状态属性以及各种状态信息和数据。利用一个功能强大的注册表数据库来统一集中的管理系统硬件设施，软件配置信息，从而方便了管理，增强了系统的稳定性
+- 早期的注册表：以ini为扩展名的文本文件的配置文件
+- Windows 95后的注册表：自Windows95操作系统开始，注册表真正成为Windows用户经常接触的内容，并在其后的操作系统中继续沿用
+  - 注册表数据库由多个文件组成
+  - Windows提供了注册表编辑器 `regedit`
+- 注册表结构：注册表以树状结构进行呈现
+  - 子树（实际只有两颗子树，为了方便操作，分成了5颗子树）
+  - HKEY_LOCAL_MACHINE:记录关于本地计算机系统的信息，包括硬件和操作系统数据
+  - HKEY_USERS:记录关于动态加载的用户配置文件和默认配置文件的信息
+  - HKEY_CURRENT_USER: HKEY_USERS子树，他指向"HKEY_USERS\当前用户的安全ID"包含当前以交互方式登录的用户的用户配置文件
+  - HKEY_CURRENT_CONFIG: HKEY_LOCAL_MACHINE子树，指向HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Hardware Profiles\Current包含在启动时由本地计算机系统使用的硬件配置文件的相关信息加载的设备驱动程序，显示时要使用的分辨率
+  - HKEY_CLASSES_ROOT: HKEY_CURRENT_USER子树包含用于各种OLE技术和文件类关联的信息
+- 项：可以简单的理解为文件夹，项中可以包含项和值
+- 值：
+  - 每个注册表项或子项都可以包含称为值的数据
+  - 部分值应用于某个用户的信息
+  - 部分值应用于计算机所有用户的信息
+  - 值由三部分组成（名称，类型，数据）
+
+#### 注册表基本操作
+
+- 创建项
+- 创建值(有6种类型的值)
+  - 字符串(REG_SZ): 固定长度的文本字符串
+  - 二进制值(REG_BINARY): 原始二进制数据。多数硬件组件信息都以二进制数据存储
+  - DWORD值(REG_DWORD): 数据由4字节的数表示。设备驱动程序和服务的很多参数都是这种类型
+  - QWORD值(REG_QWORD): 数据由8字节的数表示
+  - 多字符串值(REG_MULTI_SZ): 多重字符串，包含列表或多值的值通常为该类型
+  - 可扩充字符串值(REG_EXPAND_SZ): 长度可变的数据串，该数据类型包含在程序或服务使用该数据时解析的变量
+- 修改，删除和重命名值
+
+#### 注册表应用
+
+- 个性化时间设置：HKEY_CURRENT_USER\Control Panel\International -> sTimeFormat进行修改
+- 在欢迎屏幕显示自定义信息：HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\WIndows\CurrentVersion\Policies\System -> legalnoticecaption(标题) legalnoticetext(文本)
+- 禁用任务管理器：HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System 新建DWORD值DisableTaskMgr,设置值为1
+- 禁用控制面板：HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Expoler新建DWORD值NoControlPanel值为1
+- 去除快捷方式左下角小箭头: HKEY_CLASSES_ROOT\Inkfile  isShortcut值，直接删除
+
+#### 注册表编辑技巧
+
+- 查找字符串，值或项
+- 将子项添加到收藏夹
+- 打印注册表
+- 复制项名字
