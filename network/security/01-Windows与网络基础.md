@@ -258,3 +258,13 @@ net localgroup test zhangsan /del
 - Windows 早期使用 FAT16或 FAT32
 - 目前 Windows操作系统基本使用的是 NTFS 文件系统
   - ACL(访问控制列表，设置权限)
+  - EFS(加密文件系统，使用 BitLocker 进行磁盘加密)
+  - 压缩以及磁盘配额
+- ReFS 文件系统
+- Linux: swap(交换文件系统，主要将磁盘的一部分空间划分给内存使用)，ext4
+- 早期的 FAT 文件系统不支持单个大文件(超过 4GB)
+
+```powershell
+convert h:fs:ntfs  # h 表示的是需要转换的盘符
+```
+
