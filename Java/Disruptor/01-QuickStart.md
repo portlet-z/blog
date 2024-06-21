@@ -126,3 +126,21 @@ public class Main {
 - BlockingWaitStrategy是最低效的策略，但其对CPU的消耗最小并且在各种不同部署环境中能提供更加一致的性能表现
 - SleepingWaitStrategy的性能表现跟BlockingWaitStrategy差不多，对CPU的消耗也类似，但其对生产者线程的影响最小，适合用于异步日志类似的场景
 - YieldWaitStrategy的性能最好，适用于低延迟的系统。在要求极高性能且事件处理线程数小于CPU逻辑核心数的场景中，推荐使用此策略；例如，CPU开启超线程的特性
+
+## Event
+
+- 从生产者到消费者过程中所处理的数据单元
+- Disruptor中没有代码表示Event, 因为它完全是由用户自定义的
+
+## EventProcessor
+
+- 主要事件循环，处理Disruptor中的Event, 拥有消费者的Sequence
+- 它有一个实现类BatchEventProcessor,包含了event loop有效的实现，并且将回调到一个EventHandler接口的实现对象
+
+## EventHandler
+
+- 有用户实现并且代表了Disruptor中的一个消费者的接口，也就是我们的消费者逻辑都需要写在这里
+
+## WorkProcessor
+
+- 确保每个sequence只被一个processor消费，在同一个WorkPool中处理多个WorkProcessor不会消费同样的sequence
