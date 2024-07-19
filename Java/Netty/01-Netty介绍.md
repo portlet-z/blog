@@ -152,3 +152,19 @@
   - 客户端出站（请求数据）
   - 服务端入站（解析数据并执行业务逻辑）
   - 服务端出站（响应结果）
+
+#### ChannelHandlerContext
+
+![](./images/ChannelHandlerContext.png)
+
+- 保存ChannelHandler上下文
+- 实现ChannelHandler之间的交互
+- 包含ChannelHandler生命周期的所有事件。如connect, bind, read, flush, write, close等
+- 如果每个ChannelHandler都有一些通用的逻辑需要实现，没有ChannelHandlerContext这层模型抽象，需要写很多相同代码
+
+### 组件关系梳理
+
+![](./images/组件关系梳理.png)
+
+## Netty源码结构
+
