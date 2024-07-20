@@ -168,3 +168,49 @@
 
 ## Netty源码结构
 
+### Core
+
+- io.netty.buffer
+  - ByteBuf工具类：网络通信中的数据载体
+  - 解决了ByteBuffer长度固定造成的内存浪费问题，更安全地更改了Buffer的容量
+  - Netty对ByteBuf做了优化--缓存池化、减少数据拷贝的CompositeByteBuf等
+- io.netty.common
+  - netty-common: Netty的核心基础包，提供了丰富的工具类
+  - 通用工具类：定时器工具TimerTask, 时间轮HashedWheelTimer等
+  - 自定义并发包：异步模型Future & Promise,相比JDK增强的FastThreadLocal等
+- io.netty.resolver
+  - netty-resolver模块提供有关基础设施的解析工具--IP Address, Hostname, DNS等
+- io.netty.resolver.dns
+
+### Transport Services
+
+- io.netty.transport
+  - netty-transport模块提供了很多非常重要的接口。如BootStrap, Channel, EventLoop, EventLoopGroup, ChannelPipeline等
+  - BootStrap负责客户端活服务端的启动工作，包括创建，初始化Channel等
+  - EventLoop负责向注册的Channel发起IO读写操作
+  - ChannelPipeline负责ChannelHandler的有序编排
+- io.netty.transport.epoll
+- io.netty.transport.kqueue
+- io.netty.transport.unix.common
+- io.netty.transport.sctp
+- io.netty.transport.rxtx
+- io.netty.transport.udt
+
+### Protocol Support
+
+- io.netty.codec
+- io.netty.codec.dns
+- io.netty.codec.haproxy
+- io.netty.codec.http
+- io.netty.codec.http2
+- io.netty.codec.memcache
+- io.netty.codec.mqtt
+- io.netty.codec.redis
+- io.netty.codec.smtp
+- io.netty.codec.socks
+- io.netty.codec.stomp
+- io.netty.codec.xml
+- io.netty.handler
+  - netty-handler模块提供了开箱即用的Channdler实现类 如日志、IP过滤、流量整形等
+  - 如果需要这些功能，仅需在pipeline中加入相应的Channdler
+- io.netty.handler.proxy
