@@ -167,3 +167,66 @@ public void addMessage(Object msg, int size, ChannelPromise promise) {
 }
 ```
 
+# 写Buffer队列
+
+![](./images/写Buffer队列.png)
+
+# 刷新Buffer队列
+
+## doWrite方法的处理流程主要分为三步
+
+- 第一，根据配置获取自旋锁的次数writeSpinCount.这个自旋锁的次数主要是用来干什么的呢？
+  - 自旋锁的次数相当于控制一次写入数据的最大循环执行次数，如果超过所设置的自旋锁次数，那么写操作将会被暂时中断
+- 第二，根据自旋锁次数重复调用doWriteInternal方法发送数据，每成功发送一次数据，自旋锁的次数writeSpinCount减1，当writeSpinCount耗尽，那么doWrite操作将会被暂时中断
+  - 在于删除缓存中的链表节点以及调用底层API发送数据
+- 第三，调用incompleteWrite方法确保数据能够全部发送出去，因为自旋锁次数的限制，数据没有写完，需要继续OP_WRITE事件
+  - 如果数据已经写完，清楚OP_WRITE事件即可
+
+```mermaid
+sequenceDiagram
+participant NioSocketChannel
+participant DefaultChannelPipeline
+participant TailContext
+participant DefaultChannelHandlerContext
+participant NioEventLoop
+participant WriteAndFlush
+participant StringEncoder
+participant HeadContext
+participant NioSocketChannelUnsafe 
+NioSocketChannel -->> NioSocketChannel : writeAndFlush
+NioSocketChannel ->> DefaultChannelPipeline : writeAndFlush
+DefaultChannelPipeline ->> TailContext : writeAndFlush
+TailContext ->> TailContext : write
+TailContext ->> TailContext : findContextOutbound
+TailContext ->> TailContext : safeExecute
+TailContext ->> NioEventLoop : execute
+NioEventLoop ->> NioEventLoop : runAllTasks
+NioEventLoop ->> NioEventLoop : safeExecute
+NioEventLoop ->> WriteAndFlush : run
+WriteAndFlush ->> WriteAndFlush : write
+WriteAndFlush ->> DefaultChannelHandlerContext : invokeWrite
+DefaultChannelHandlerContext ->> DefaultChannelHandlerContext : invokeWrite0
+DefaultChannelHandlerContext ->> StringEncoder : write
+StringEncoder ->> DefaultChannelHandlerContext : write
+DefaultChannelHandlerContext ->> DefaultChannelHandlerContext : findContextOutbound
+DefaultChannelHandlerContext ->> HeadContext : invokeWrite
+HeadContext ->> HeadContext : invokeWrite0
+HeadContext ->> HeadContext : write
+HeadContext ->> NioSocketChannelUnsafe : write
+WriteAndFlush ->> HeadContext : invokeFlush
+HeadContext ->> HeadContext : invokeFlush0
+HeadContext ->> HeadContext : flush
+HeadContext ->> NioSocketChannelUnsafe : flush
+NioSocketChannelUnsafe ->> NioSocketChannelUnsafe : flush0
+NioSocketChannelUnsafe ->> NioSocketChannelUnsafe : doWrite
+```
+
+# writeAndFlush的处理流程
+
+- writeAndFlush属于出站操作，从Pipeline的Tail节点开始进行事件传播，一直向前传播到Head节点
+- write方法并没有将数据写入Socket缓冲区，只是将数据写入到ChannelOutboundBuffer缓存中
+- flush方法才最终将数据写入到Socket缓冲区
+
+# 总结
+
+- Channel和ChannelHandlerContext都有writeAndFlush方法，他们之间的区别是什么？
