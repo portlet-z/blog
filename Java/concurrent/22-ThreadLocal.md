@@ -1,3 +1,5 @@
+![](./images/ThreadLocal.png)
+
 - ThreadLocal可以实现【资源对象】的线程隔离，让每个线程各用各的【资源对象】，避免争用引发的线程安全问题
 - ThreadLocal同时实现了线程内的资源共享
 - 其原理是，每个线程内有一个ThreadLocalMap类型的成员遍历，用来存储资源对象
@@ -56,3 +58,8 @@ public class TestThreadLocal {
 }
 ```
 
+## ThreadLocalMap中Entry的设计原理
+
+- Entry继承自弱引用类WeakReference, Entry的key是弱引用，value是强引用
+- 为什么Entry的key是弱引用？如果key都是强引用，当ThreadLocal不再使用时，然而ThreadLocalMap中还是存在对ThreadLocal的强引用，那么GC是无法回收的，从而造成内存浪费
+- 应该如何避免ThreadLocalMap内存泄漏？在执行ThreadLocal.set()/get()方法时，ThreadLocal会清除ThreadLocalMap中key为NULL的Entry对象，让它还能够被GC回收
